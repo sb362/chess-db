@@ -1,0 +1,3 @@
+option('use_intrinsics', type : 'boolean', value : true, description : 'Use intrinsics where available')
+
+option('build_tests', type : 'boolean', value : false, description : 'Build tests')
