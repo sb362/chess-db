@@ -28,12 +28,15 @@ build_tests = get_option('build_tests')
 # Disable dumb warnings
 if cc.get_id() == 'gcc' or cc.get_id() == 'clang'
 	add_project_arguments('-Wno-missing-field-initializers', language : 'c')
-	add_project_arguments('-Wno-gnu-binary-literal', language : 'c')
 	add_project_arguments('-Wno-char-subscripts', language : 'c')
 	add_project_arguments('-Wno-unused-parameter', language : 'c')
 
 	add_project_arguments('-Wno-unused-parameter', language : 'cpp')
-	add_project_arguments('-Wno-unused-private-field', language : 'cpp')
+	add_project_arguments('-Wno-unused-variable', language : 'cpp')
+endif
+
+if cc.get_id() == 'clang'
+	add_project_arguments('-Wno-gnu-binary-literal', language : 'c')
 endif
 
 # Intrinsics

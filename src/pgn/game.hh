@@ -62,7 +62,7 @@ struct IVisitor
 	 * @return true Continue traversing along this branch
 	 * @return false Immediately stop visiting this branch
 	 */
-	virtual bool accept(Position position, GameNode *node) = 0;
+	virtual bool accept(PositionState position, GameNode *node) = 0;
 
 	virtual bool begin_headers() = 0;
 	virtual void end_headers() = 0;
@@ -80,7 +80,7 @@ struct IVisitor
 	 * @return true Accept this variation
 	 * @return false Skip this variation
 	 */
-	virtual bool begin_variation(Position position,
+	virtual bool begin_variation(PositionState position,
 								 GameNode *main_line,
 								 GameNode *variation,
 								 unsigned variation_idx) = 0;
@@ -105,7 +105,7 @@ public:
 	void end_game() override {};
 
 	void visit_headers(Headers &headers);
-	void visit_moves(Position start_pos, GameNode *node);
+	void visit_moves(PositionState start_pos, GameNode *node);
 
 	void visit_game(Game *game);
 };
@@ -134,7 +134,7 @@ public:
 
 private:
 	bool accept(const std::string &tag_name, std::string &tag_value) override;
-	bool accept(Position position, GameNode *node) override;
+	bool accept(PositionState position, GameNode *node) override;
 
 	bool begin_headers() override;
 	void end_headers() override;
@@ -142,7 +142,7 @@ private:
 	bool begin_game() override;
 	void end_game() override;
 
-	bool begin_variation(Position position,
+	bool begin_variation(PositionState position,
 						 GameNode *main_line,
 						 GameNode *variation,
 						 unsigned variation_idx) override;

@@ -8,18 +8,18 @@
 
 using namespace pgn;
 
-struct Frame
+struct VisitorFrame
 {
 	GameNode *node;
-	Position position;
+	PositionState position;
 
 	unsigned next_var_idx, state;
 	bool entered_variation;
 
-	Frame(GameNode *node, Position position,
-		  unsigned next_var_idx = 1,
-		  unsigned state = 0,
-		  bool entered_variation = false)
+	VisitorFrame(GameNode *node, PositionState position,
+				 unsigned next_var_idx = 1,
+				 unsigned state = 0,
+				 bool entered_variation = false)
 		: node(node), position(position),
 		  next_var_idx(next_var_idx),
 		  state(state),
@@ -35,9 +35,9 @@ void Visitor::visit_headers(Headers &headers)
 			break;
 }
 
-void Visitor::visit_moves(Position start_pos, GameNode *root)
+void Visitor::visit_moves(PositionState start_pos, GameNode *root)
 {
-	std::stack<Frame> stack;
+	std::stack<VisitorFrame> stack;
 	stack.emplace(root, start_pos);
 
 	while (!stack.empty())
@@ -83,7 +83,7 @@ void Visitor::visit_moves(Position start_pos, GameNode *root)
 				}
 				else
 				{
-					top.position = make_move(top.position, top.node->move);
+					top.position = do_move(top.position, top.node->move);
 					stack.emplace(top.node->next(), top.position);
 					top.state = 3;
 				}
@@ -108,13 +108,13 @@ void Visitor::visit_game(Game *game)
 	{
 		auto it = game->headers.find("FEN");
 		
-		Position pos;
+		PositionState pos;
 		if (it == game->headers.end())
-			pos = startpos();
+			pos = {Startpos, WHITE, 0, 0};
 		else
 		{
 			bool ok = false;
-			pos = parse_fen(it->second.c_str(), it->second.size(), &ok);
+			pos = parse_fen(it->second.c_str(), &ok, stderr);
 
 			ASSERT(ok);
 		}
@@ -129,26 +129,25 @@ bool GameExporter::accept(const std::string &tag_name, std::string &tag_value)
 	return true;
 }
 
-bool GameExporter::accept(Position position, GameNode *node)
+bool GameExporter::accept(PositionState position, GameNode *node)
 {
-	const char *san = move_to_san(position, node->move);
+	char san[10] = {0};
+	size_t length = generate_san(node->move, position, san, false);
+	(void)length;
 
 	if (need_space)
 		fputc(' ', out);
 	need_space = false;
 
-	if (1/*position.side_to_move() == Colour::Black*/)
+	if (position.side_to_move == BLACK)
 	{
-		//if (exited_variation)
-		//	fputc(' ', out);
-
 		if (need_ellipsis)
-			fmt::print(out, "{}... ", 1 + 0/*position.fullmoves()*/);
+			fmt::print(out, "{}... ", 1 + fullmove_number(position));
 
 		fputs(san, out);
 	}
 	else
-		fmt::print(out, "{}. {}", 1 + 0/*position.fullmoves()*/, san);
+		fmt::print(out, "{}. {}", 1 + fullmove_number(position), san);
 
 	need_ellipsis = false;
 
@@ -188,7 +187,7 @@ void GameExporter::end_headers()
 	fputc('\n', out);
 }
 
-bool GameExporter::begin_variation(Position,
+bool GameExporter::begin_variation(PositionState,
 								   GameNode *,
 								   GameNode *,
 								   unsigned variation_idx)

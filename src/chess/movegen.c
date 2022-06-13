@@ -1,6 +1,7 @@
 #include "bits.h"
 #include "movegen.h"
 #include "position.h"
+
 #include <stdbool.h>
 
 static inline
@@ -9,6 +10,8 @@ void append(struct MoveList *list, struct Move move) {
 }
 
 static inline bitboard line_between(bitboard a, bitboard b) {
+	ASSERT(a && b && "bitboards must be populated");
+
 	square sqa = lsb(a);
 	square sqb = lsb(b);
 
@@ -62,7 +65,6 @@ bitboard enemy_attacks(struct Position pos) {
 	return attacks;
 }
 
-static inline
 bitboard enemy_checks(struct Position pos) {
 	bitboard king = extract(pos, King) & pos.white;
 	square sq = lsb(king);
@@ -218,8 +220,8 @@ void filter_pinned_moves(struct Position pos, struct MoveList *list) {
 
 	for (size_t i = 0; i < length; i++) {
 		struct Move move = list->moves[i];
-		bitboard mask = 1L << move.start;
-		bitboard dst = 1L << move.end;
+		bitboard mask = 1ULL << move.start;
+		bitboard dst = 1ULL << move.end;
 
 		// remove captured en passant pawn from occupancy
 		if (move.piece == Pawn) {
@@ -245,7 +247,7 @@ struct MoveList generate_moves(struct Position pos) {
 	bitboard king = extract(pos, King) & pos.white;
 
 	// if more than 1 check we can only move the king
-	if (more_than_one(checkers))
+	if (checkers & (checkers - 1))
 		goto king_moves;
 
 	bitboard targets = ~pos.white;

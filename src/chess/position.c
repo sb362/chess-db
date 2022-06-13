@@ -6,6 +6,8 @@
 // note: square must be None
 static inline
 void set_square(struct Position *pos, square sq, enum PieceType T) {
+	ASSERT(sq < 64 && "invalid square");
+
 	pos->X |= (bitboard)((T >> 0) & 1) << sq;
 	pos->Y |= (bitboard)((T >> 1) & 1) << sq;
 	pos->Z |= (bitboard)((T >> 2) & 1) << sq;
@@ -20,12 +22,12 @@ struct Position make_move(struct Position pos, struct Move move) {
 
 	// construct clear mask
 	bitboard clear = ~occ; // clear all info to replace with new info
-	clear |= 1L << move.start;
-	clear |= 1L << move.end;
+	clear |= 1ULL << move.start;
+	clear |= 1ULL << move.end;
 
 	// remove captured en-passant pawn
 	if (move.piece == Pawn)
-		clear |= shift(S, ep_mask & (1L << move.end));
+		clear |= shift(S, ep_mask & (1ULL << move.end));
 
 	// remove castling rook
 	if (move.castling)
@@ -38,7 +40,7 @@ struct Position make_move(struct Position pos, struct Move move) {
 	pos.Z &= ~clear;
 
 	// set moved pieces
-	pos.white |= 1L << move.end;
+	pos.white |= 1ULL << move.end;
 	set_square(&pos, move.end, move.piece);
 
 	// set castled rook
@@ -46,7 +48,7 @@ struct Position make_move(struct Position pos, struct Move move) {
 		square mid = (move.start + move.end) >> 1;
 		set_square(&pos, mid, Rook);
 
-		pos.white |= 1L << mid;
+		pos.white |= 1ULL << mid;
 	}
 
 	// update castling rights
@@ -63,10 +65,10 @@ struct Position make_move(struct Position pos, struct Move move) {
 	info  = ((info << 2) | (info >> 2)) & CA_MASK;
 
 	// rotate board
-	pos.X = bswap(pos.X);
-	pos.Y = bswap(pos.Y);
-	pos.Z = bswap(pos.Z);
-	pos.white = bswap(pos.white);
+	pos.X = reverse(pos.X);
+	pos.Y = reverse(pos.Y);
+	pos.Z = reverse(pos.Z);
+	pos.white = reverse(pos.white);
 
 	// update new en-passant square
 	if (move.piece == Pawn && move.end - move.start == N+N)

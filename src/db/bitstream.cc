@@ -93,7 +93,7 @@ public:
 	}
 
 	template <typename T = uint64_t>
-	auto read_uleb128()
+	auto read_uleb128() -> T
 	{
 		T value = 0;
 

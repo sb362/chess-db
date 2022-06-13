@@ -179,21 +179,31 @@ Token next_token(Parser &parser)
 	return {NONE, ""};
 }
 
-struct Frame
+struct ParserFrame
 {
 	pgn::GameNode *node;
-	Position position;
+	PositionState position;
 	unsigned move_no;
 
-	Frame(pgn::GameNode *node,
-		  const Position &position,
-		  unsigned move_no)
+	ParserFrame(pgn::GameNode *node,
+				PositionState position,
+				unsigned move_no)
 		: node(node), position(position), move_no(move_no)
 	{
 	}
 };
 
-int pgn::parse_game(std::string_view str, GameNode *out)
+int pgn::parse_game(std::string_view str, Game *game)
+{
+	int new_pos = 0;
+
+	//new_pos = parse_headers(str, game->headers);
+	new_pos = parse_movetext(str.substr(new_pos), game);
+
+	return new_pos;
+}
+
+int pgn::parse_headers(std::string_view str, Headers &headers)
 {
 	Parser parser {str, 0};
 	Token token, previous_token;
@@ -217,18 +227,25 @@ int pgn::parse_game(std::string_view str, GameNode *out)
 		token = next_token(parser);
 		ASSERT(token.type == NEWLINE);
 
-
+		headers.insert_or_assign(tag_name, tag_value);
 		fmt::print("Name: {}, value: {}\n", tag_name, tag_value);
 	}
 
-	eat(parser, " \t\n\r");
+	return parser.pos;
+}
 
-	std::stack<Frame> stack;
-	stack.emplace(out, Position {}, 1);
+int pgn::parse_movetext(std::string_view str, GameNode *game)
+{
+	Parser parser {str, 0};
+	Token token, previous_token;
+
+	std::stack<ParserFrame> stack;
+	stack.emplace(game, PositionState {Startpos, WHITE, 0, 0}, 1);
 
 	while ((token = next_token(parser)).type != NONE)
 	{
-		Frame &top = stack.top();
+		ASSERT(!stack.empty());
+		ParserFrame &top = stack.top();
 
 		if (token.type == INTEGER)
 		{
@@ -238,15 +255,23 @@ int pgn::parse_game(std::string_view str, GameNode *out)
 
 			token = next_token(parser);
 			ASSERT(token.type == PERIOD);
-			/*ASSERT((position.side_to_move() == Colour::White
-				 && token.value.size() == 1)  // todo: only after variation
-				 || token.value.size() == 3);*/
 		}
 		else if (token.type == SYMBOL)
 		{
+			char fen[256] = {0};
+			int length = generate_fen(top.position, fen);
+			fmt::print("{}\n", fen);
+
 			bool ok = false;
-			Move move = parse_move_san(token.value.data(), token.value.size(), &top.position, &ok);
+
+			const Move move = parse_san(token.value.data(), token.value.size(), top.position, &ok);
+			fmt::print("{:06b} {:06b} {:03b} {:01b}\n", move.start, move.end, move.piece, move.castling);
+			ASSERT(ok);
+
 			top.node->emplace_back(move, "");
+			fmt::print("do_move({})\n", token.value);
+			//top.position = do_move(top.position, move);
+			top.position.pos = make_move(top.position.pos, move);
 			top.node = top.node->next();
 		}
 		else if (token.type == BRACKET)
@@ -304,5 +329,5 @@ int pgn::parse_game(std::string_view str, GameNode *out)
 		previous_token = token;
 	}
 
-	return 0;
+	return parser.pos;
 }

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BITS_H_
+#define BITS_H_
 
 #include <stdint.h>
 #include <string.h>
@@ -32,8 +33,7 @@ static inline bitboard shiftW(bitboard bb) { return (bb & ~AFILE) >> 1; }
 #define _shift(n,...) __shift(n, __VA_ARGS__)
 #define shift(...) _shift(nargs(__VA_ARGS__), __VA_ARGS__)
 
-#define more_than_one(bb) (bb & (bb - 1))
-#define only_one(bb) (bb && !more_than_one(bb))
+#define reverse(bb) bswap(bb)
 
 struct bitbase {
 	bitboard knight, king, mask[2], *attacks[2];
@@ -44,26 +44,28 @@ void init_bitbase();
 
 
 static inline bitboard knight_attacks(square sq) {
-	ASSERT(sq < 64);
+	ASSERT(sq < 64 && "invalid square");
 	return bitbase[sq].knight;
 }
 
 static inline bitboard bishop_attacks(square sq, bitboard occ) {
-	ASSERT(sq < 64);
+	ASSERT(sq < 64 && "invalid square");
 	return bitbase[sq].attacks[0][pext(occ, bitbase[sq].mask[0])];
 }
 
 static inline bitboard rook_attacks(square sq, bitboard occ) {
-	ASSERT(sq < 64);
+	ASSERT(sq < 64 && "invalid square");
 	return bitbase[sq].attacks[1][pext(occ, bitbase[sq].mask[1])];
 }
 
 static inline bitboard queen_attacks(square sq, bitboard occ) {
-	ASSERT(sq < 64);
+	ASSERT(sq < 64 && "invalid square");
 	return bishop_attacks(sq, occ) | rook_attacks(sq, occ);
 }
 
 static inline bitboard king_attacks(square sq) {
-	ASSERT(sq < 64);
+	ASSERT(sq < 64 && "invalid square");
 	return bitbase[sq].king;
 }
+
+#endif /*BITS_H_*/
