@@ -12,11 +12,12 @@
 struct PositionState parse_fen(const char *fen, bool *ok, FILE *stream);
 size_t generate_fen(struct PositionState state, char *buffer);
 
-// standard algebraic notation
-size_t generate_san(struct Move move, struct PositionState state, char *buffer, bool check_and_mate);
-struct Move parse_san(const char *in, size_t len, struct PositionState state, bool *ok);
+// standard algebraic notation and uci notation
 
-// universal chess interface notation
+struct Move parse_san(const char *san, struct PositionState state, bool *ok, FILE *stream);
+struct Move parse_uci(const char *uci, struct PositionState state, bool *ok, FILE *stream);
+
+size_t generate_san(struct Move move, struct PositionState state, char *buffer, bool check_and_mate);
 size_t generate_uci(struct Move move, struct PositionState state, char *buffer);
 
 #endif //TEXT_H_
