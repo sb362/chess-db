@@ -1,7 +1,7 @@
 
 db_inc = include_directories('.')
 
-db_src = ['bitstream.cc']
+db_src = ['io.cc', 'encoder.cc', 'db.cc']
 
 db_lib = static_library('db',
 	sources             : db_src,

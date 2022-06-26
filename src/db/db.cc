@@ -1,18 +1,15 @@
 
-#include "pgn/tree.hh"
-#include "pgn/game.hh"
-#include "pgn/parser.hh"
+#include "db.hh"
 
+using namespace db;
 
-class ResultNode : public pgn::Node<ResultNode>
+Database::Database(const std::string &file_name)
+	: _file(file_name, 0x1000), _header(_file.str())
 {
-private:
-
-public:
-
-
-
+		
 }
 
-
-
+Database::~Database()
+{
+	
+}
