@@ -8,19 +8,31 @@
 
 using namespace pgn;
 
+bool Visitor::handle_error(size_t stream_pos,
+						   std::string_view token,
+						   const std::string &message)
+{
+	fmt::print(stderr, "{:03d} '{}' {}\n", stream_pos, token, message);
+	std::abort();
+
+	return false;
+}
+
 struct VisitorFrame
 {
 	GameNode *node;
-	PositionState position;
+	PositionState prev, next;
 
 	unsigned next_var_idx, state;
 	bool entered_variation;
 
-	VisitorFrame(GameNode *node, PositionState position,
+	VisitorFrame(GameNode *node,
+				 PositionState prev,
+				 PositionState next,
 				 unsigned next_var_idx = 1,
 				 unsigned state = 0,
 				 bool entered_variation = false)
-		: node(node), position(position),
+		: node(node), prev(prev), next(next),
 		  next_var_idx(next_var_idx),
 		  state(state),
 		  entered_variation(entered_variation)
@@ -38,7 +50,7 @@ void Visitor::visit_headers(Headers &headers)
 void Visitor::visit_moves(PositionState start_pos, GameNode *root)
 {
 	std::stack<VisitorFrame> stack;
-	stack.emplace(root, start_pos);
+	stack.emplace(root, start_pos, start_pos);
 
 	while (!stack.empty())
 	{
@@ -54,8 +66,8 @@ void Visitor::visit_moves(PositionState start_pos, GameNode *root)
 		switch (top.state)
 		{
 		case 0:
-			if (!accept(top.position, top.node))
-				break;
+			if (!accept(top.next, top.node))
+				return;
 
 			top.state = 1;
 			[[fallthrough]];
@@ -65,10 +77,10 @@ void Visitor::visit_moves(PositionState start_pos, GameNode *root)
 			{
 				// do move
 				GameNode *var_node = parent->next(top.next_var_idx);
-				if (begin_variation(top.position, top.node,
+				if (begin_variation(top.prev, top.node,
 									var_node, top.next_var_idx))
 				{
-					stack.emplace(var_node, top.position, MaxVariationDepth);
+					stack.emplace(var_node, top.prev, top.prev, MaxVariationDepth);
 					top.entered_variation = true;
 				}
 
@@ -76,20 +88,19 @@ void Visitor::visit_moves(PositionState start_pos, GameNode *root)
 			}
 			else // no more variations left
 			{
-				// no more moves left - end of variation
-				if (top.node->is_leaf())
+				if (!top.node->is_leaf())
 				{
-					top.state = 3;
+					top.prev = top.next;
+					top.next = do_move(top.next, top.node->move);
+
+					stack.emplace(top.node->next(), top.prev, top.next);
 				}
-				else
-				{
-					top.position = do_move(top.position, top.node->move);
-					stack.emplace(top.node->next(), top.position);
-					top.state = 3;
-				}
+
+				top.state = 2;
 			}
+
 			break;
-		case 3:
+		case 2:
 			stack.pop();
 			break;
 		}
@@ -120,6 +131,7 @@ void Visitor::visit_game(Game *game)
 		}
 
 		visit_moves(pos, game->next());
+		end_game(game->result);
 	}
 }
 
@@ -131,6 +143,13 @@ bool GameExporter::accept(const std::string &tag_name, std::string &tag_value)
 
 bool GameExporter::accept(PositionState position, GameNode *node)
 {
+	uint16_t s = node->move.start, e = node->move.end, p = node->move.piece, c = node->move.castling;
+	
+	char fen[0xff] = {0};
+	generate_fen(position, fen);
+	fmt::print("{}\n", fen);
+	fmt::print("{:06b} {:06b} {:03b} {:01b}\n", s, e, p, c);
+
 	char san[10] = {0};
 	size_t length = generate_san(node->move, position, san, false);
 	(void)length;
@@ -165,6 +184,10 @@ bool GameExporter::accept(PositionState position, GameNode *node)
 	else
 		need_space = true;
 
+	fputc('\n', out);
+
+	fflush(out);
+
 	return true;
 }
 
@@ -173,7 +196,7 @@ bool GameExporter::begin_game()
 	return true;
 }
 
-void GameExporter::end_game()
+void GameExporter::end_game(Result result)
 {
 }
 

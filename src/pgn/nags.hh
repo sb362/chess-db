@@ -12,7 +12,7 @@ struct NAGInfo
 	std::string_view symbol;
 };
 
-constexpr std::array<NAGInfo, 0xff> NAGs =
+constexpr std::array<NAGInfo, 0x100> NAGs =
 {{
 	{"null",                      ""  },  // 0
 

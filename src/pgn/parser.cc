@@ -1,12 +1,7 @@
+
 #include "parser.hh"
 
-#include "chess/uchess.h"
-#include "nags.hh"
-
-#include "fmt/format.h"
-
-#include <charconv> // from_chars
-#include <stack>
+#include <charconv>
 
 enum TokenType
 {
@@ -35,42 +30,44 @@ struct Token
 	std::string_view value;
 };
 
-struct Parser
+struct TokenStream
 {
 	std::string_view str;
 	std::size_t pos;
 };
 
-bool accept(Parser &parser, char c)
+bool accept(TokenStream &stream, char c)
 {
-	if (parser.str[parser.pos] == c)
+	if (stream.str[stream.pos] == c)
 	{
-		++parser.pos;
+		++stream.pos;
 		return true;
 	}
 	else return false;
 }
 
-bool accept(Parser &parser, std::string_view chars)
+bool accept(TokenStream &stream, std::string_view chars)
 {
 	for (char c : chars)
-		if (accept(parser, c))
+		if (accept(stream, c))
 			return true;
 
 	return false;
 }
 
-void eat(Parser &parser, std::string_view chars)
+bool eat(TokenStream &stream, std::string_view chars)
 {
-	for (; accept(parser, chars); ) {};
+	bool b = false;
+	for (; accept(stream, chars); ) b = true;
+	return b;
 }
 
-void skip_line(Parser &parser)
+void skip_line(TokenStream &stream)
 {
-	for (; parser.pos < parser.str.size(); ++parser.pos)
-		if (parser.str[parser.pos] == '\n')
+	for (; stream.pos < stream.str.size(); ++stream.pos)
+		if (stream.str[stream.pos] == '\n')
 		{
-			++parser.pos;
+			++stream.pos;
 			break;
 		}
 }
@@ -119,22 +116,16 @@ struct TokenTypeLookup
 			data[static_cast<unsigned char>(s[i])] = type;
 	}
 };
-static constexpr TokenTypeLookup lookup;
+static constexpr TokenTypeLookup pgn_lookup;
 
-void pgn::init()
+Token next_token(TokenStream &stream)
 {
-}
-
-Token next_token(Parser &parser)
-{
-	size_t &pos = parser.pos;
-	std::string_view str = parser.str;
+	size_t &pos = stream.pos;
+	std::string_view str = stream.str;
 
 	size_t start_pos = pos;
 	char c = str[pos];
-	TokenType type = lookup[c];
-
-	//fmt::print("TOKEN '{}' @ {:02d} -> {}\n", c, pos, type);
+	TokenType type = pgn_lookup[c];
 
 	switch (type)
 	{
@@ -142,19 +133,19 @@ Token next_token(Parser &parser)
 	case WHITESPACE:
 	case NEWLINE:
 	case PERIOD:
-		do { c = str[++pos]; } while (lookup[c] == type && pos < str.size());
+		do { c = str[++pos]; } while (pgn_lookup[c] == type && pos < str.size());
 		return {type, str.substr(start_pos, pos - start_pos)};
 	case SYMBOL:
 		do {
 			c = str[++pos];
 			if (pos >= str.size()) break;
-		} while (lookup[c] == SYMBOL || lookup[c] == INTEGER);
+		} while (pgn_lookup[c] == SYMBOL || pgn_lookup[c] == INTEGER);
 		return {type, str.substr(start_pos, pos - start_pos)};
 	case STRING:
 	case COMMENT:
 		do {
 			c = str[++pos]; // todo: handle escaped quotes
-			if (lookup[c] == type)
+			if (pgn_lookup[c] == type)
 			{
 				++pos;
 				break;
@@ -167,9 +158,9 @@ Token next_token(Parser &parser)
 		return {type, str.substr(pos++, 1)};
 	case NAG:
 		if (c == '$')
-			do { c = str[++pos]; } while (lookup[c] == INTEGER && pos < str.size());
+			do { c = str[++pos]; } while (pgn_lookup[c] == INTEGER && pos < str.size());
 		else if (c == '?' || c == '!')
-			eat(parser, "?!");
+			eat(stream, "?!");
 
 		return {type, str.substr(start_pos, pos - start_pos)};
 	default:
@@ -179,131 +170,240 @@ Token next_token(Parser &parser)
 	return {NONE, ""};
 }
 
-struct ParserFrame
+#define EXPECT(cond, str, msg) if (!((cond))) {      \
+	if (visitor->handle_error(stream.pos, str, msg)) \
+		return -stream.pos; }
+
+
+int pgn::parse_game(std::string_view str, IVisitor *visitor)
 {
-	pgn::GameNode *node;
-	PositionState position;
-	unsigned move_no;
+	int pos = parse_headers(str, visitor);
 
-	ParserFrame(pgn::GameNode *node,
-				PositionState position,
-				unsigned move_no)
-		: node(node), position(position), move_no(move_no)
-	{
-	}
-};
+	pos += parse_movetext(str.substr(pos), visitor);
 
-int pgn::parse_game(std::string_view str, Game *game)
-{
-	int new_pos = 0;
-
-	//new_pos = parse_headers(str, game->headers);
-	new_pos = parse_movetext(str.substr(new_pos), game);
-
-	return new_pos;
+	return pos;
 }
 
-int pgn::parse_headers(std::string_view str, Headers &headers)
+#include "fmt/format.h"
+int pgn::parse_headers(std::string_view str, IVisitor *visitor)
 {
-	Parser parser {str, 0};
-	Token token, previous_token;
+	visitor->begin_headers();
 
-	while ((token = next_token(parser)).value == "[")
+	TokenStream stream {str, 0};
+	Token token;
+
+	eat(stream, "\r\n");
+
+	while (accept(stream, '['))
 	{
-		token = next_token(parser);
-		ASSERT(token.type == SYMBOL);
+		token = next_token(stream);
+		EXPECT(token.type == SYMBOL, token.value, "expected symbol");
 		std::string tag_name {token.value};
 
-		token = next_token(parser);
-		ASSERT(token.type == WHITESPACE);
+		token = next_token(stream);
+		EXPECT(token.type == WHITESPACE, token.value, "expected whitespace");
 
-		token = next_token(parser);
-		ASSERT(token.type == STRING);
+		token = next_token(stream);
+		EXPECT(token.type == STRING, token.value, "expected string");
 		std::string tag_value {token.value};
 
-		token = next_token(parser);
-		ASSERT(token.value == "]");
+		EXPECT(accept(stream, ']'), str.substr(stream.pos, 1), "missing closing square bracket");
+		EXPECT(eat(stream, "\r\n"), str.substr(stream.pos, 1), "expected newlines");
 
-		token = next_token(parser);
-		ASSERT(token.type == NEWLINE);
-
-		headers.insert_or_assign(tag_name, tag_value);
-		fmt::print("Name: {}, value: {}\n", tag_name, tag_value);
+		visitor->accept(tag_name, tag_value);
 	}
 
-	return parser.pos;
+	visitor->end_headers();
+
+	return stream.pos;
 }
 
-int pgn::parse_movetext(std::string_view str, GameNode *game)
+int pgn::parse_movetext(std::string_view movetext, IVisitor *visitor,
+						const PositionState startpos)
 {
-	Parser parser {str, 0};
+	TokenStream stream {movetext, 0};
 	Token token, previous_token;
 
-	std::stack<ParserFrame> stack;
-	stack.emplace(game, PositionState {Startpos, WHITE, 0, 0}, 1);
+	pgn::GameNode node {nullptr};
 
-	while ((token = next_token(parser)).type != NONE)
+	struct Frame {
+		PositionState prev, next;
+
+		Frame(PositionState prev, PositionState next)
+			: prev(prev), next(next)
+		{
+		}
+	};
+
+	std::stack<Frame> stack;
+	stack.emplace(startpos, startpos);
+
+	visitor->begin_game();
+
+	bool done = false;
+	auto result = Result::Unknown;
+	
+	while ((token = next_token(stream)).type != NONE)
 	{
 		ASSERT(!stack.empty());
-		ParserFrame &top = stack.top();
+		auto &top = stack.top();
 
 		if (token.type == INTEGER)
 		{
-			std::from_chars(token.value.data(),
-							token.value.data() + token.value.size(),
-							top.move_no);
+			unsigned move_no = 0;
+			auto [useless, ec] = std::from_chars(
+				token.value.data() + token.value.size(),
+				token.value.end(),
+				move_no);
+			
+			EXPECT(!(ec == std::errc()), token.value, "failed to parse move number");
 
-			token = next_token(parser);
-			ASSERT(token.type == PERIOD);
+			if (token.value == "1" || token.value == "0")
+			{
+				EXPECT(stack.size() == 1, token.value, "game terminated with unclosed variation");
+
+				if (accept(stream, '-'))
+				{
+					if (token.value == "1")
+					{
+						EXPECT(accept(stream, '0'), token.value, "malformed result token");
+						result = Result::WhiteWin;
+					}
+					else
+					{
+						EXPECT(accept(stream, '1'), token.value, "malformed result token");
+						result = Result::BlackWin;
+					}
+				}
+				else if (accept(stream, '/'))
+				{
+					EXPECT(
+						   accept(stream, '2')
+						&& accept(stream, '-')
+						&& accept(stream, '1')
+						&& accept(stream, '/')
+						&& accept(stream, '2'),
+						token.value,
+						"malformed result token"
+					);
+
+					result = Result::Draw;
+				}
+
+				break;
+			}
+			else
+			{
+				token = next_token(stream);
+				EXPECT(token.type == PERIOD, token.value, "expected period after movenumber")
+			}
 		}
 		else if (token.type == SYMBOL)
 		{
-			char fen[256] = {0};
-			int length = generate_fen(top.position, fen);
-			fmt::print("{}\n", fen);
+			if (done)
+				visitor->accept(top.prev, &node);
+			else
+				done = true;
+
+			node = {nullptr};
 
 			bool ok = false;
 
-			const Move move = parse_san(token.value.data(), token.value.size(), top.position, &ok);
-			fmt::print("{:06b} {:06b} {:03b} {:01b}\n", move.start, move.end, move.piece, move.castling);
-			ASSERT(ok);
+			std::string s {token.value}; // c_str
+			node.move = parse_san(s.c_str(), top.next, &ok, stderr);
+			if (!ok)
+			{
+				//visitor->handle_error(stream.pos, token.value, "failed to parse SAN");
 
-			top.node->emplace_back(move, "");
-			fmt::print("do_move({})\n", token.value);
-			//top.position = do_move(top.position, move);
-			top.position.pos = make_move(top.position.pos, move);
-			top.node = top.node->next();
+				// skip game
+				char fen[256] = {0};
+				generate_fen(top.next, fen);
+				fmt::print("{}\n", fen);
+
+				while (true)
+				{
+					token = next_token(stream);
+					if (token.type == ASTERISK)
+						break;
+					
+					if (token.value == "1" || token.value == "0")
+					{
+						if (accept(stream, '-'))
+						{
+							accept(stream, '0') || accept(stream, '1');
+							break;
+						}
+						else if (accept(stream, '/'))
+						{
+							   accept(stream, '2')
+							&& accept(stream, '-')
+							&& accept(stream, '1')
+							&& accept(stream, '/')
+							&& accept(stream, '2');
+							break;
+						}
+					}
+				}
+
+				// todo: try to fix SAN
+				// todo: handle error returning bool... ???
+				break;
+			}
+
+			top.prev = top.next;
+			top.next = do_move(top.next, node.move);
 		}
 		else if (token.type == BRACKET)
 		{
 			if (token.value == "(")
 			{
-				ASSERT(!top.node->is_dangling());
-
-				stack.emplace(top.node->parent(),
-							  top.position, top.move_no);
+				visitor->begin_variation(top.prev, nullptr, nullptr, -1);
+				stack.emplace(top.prev, top.prev);
 			}
 			else if (token.value == ")")
 			{
-				ASSERT(stack.size() >= 2);
+				EXPECT(stack.size() >= 2, token.value, "no variation to close");
 				stack.pop();
 			}
 			else
 			{
-				// todo: reserved
-				ASSERT(false);
+				// todo
+				EXPECT(false, token.value, "reserved token");
 			}
 		}
 		else if (token.type == COMMENT)
 		{
-			top.node->comment = token.value;
+			node.comment = token.value.substr(1, token.value.size() - 2);
 		}
 		else if (token.type == NAG)
 		{
+			if (token.value == "!")
+				{}// excellent
+			else if (token.value == "?")
+				{}// mistake
+			else if (token.value == "??")
+				{}// blunder
+			else if (token.value == "!!")
+				{}// brilliant
+			else if (token.value == "!?")
+				{}// interesting
+			else if (token.value == "?!")
+				{}// inaccuracy
+			else if (token.value[0] == '$')
+			{
+				auto nag_str = token.value.substr(1);
+				unsigned nag = 0;
+				auto [useless, ec] = std::from_chars(nag_str.data() + nag_str.size(),
+													 nag_str.end(), nag);
+
+				ASSERT(!(ec == std::errc()));
+			}
+
 			// todo: add NAG to current node
 		}
 		else if (token.type == ASTERISK)
 		{
+			EXPECT(stack.size() == 1, token.value, "game terminated with unclosed variation");
 			break;
 		}
 		else if (token.type == WHITESPACE)
@@ -312,7 +412,7 @@ int pgn::parse_movetext(std::string_view str, GameNode *game)
 		}
 		else if (token.type == NEWLINE)
 		{
-			
+				
 		}
 		else if (token.type == MISC)
 		{
@@ -320,14 +420,30 @@ int pgn::parse_movetext(std::string_view str, GameNode *game)
 			{
 				// should only appear at the start of a line
 				if (token.value == "%")
-					ASSERT(previous_token.type == NEWLINE);
+					EXPECT(previous_token.type == NEWLINE, token.value,
+						   "comment must start at beginning of line");
 
-				skip_line(parser);
+				skip_line(stream);
 			}
 		}
 
 		previous_token = token;
 	}
 
-	return parser.pos;
+	visitor->end_game(result);
+
+	return stream.pos;
+}
+
+#undef EXPECT
+
+bool pgn::GameBuilder::handle_error(size_t stream_pos, std::string_view token,
+								 	const std::string &message)
+{
+	if (try_fix_errors && message == "failed to parse SAN")
+	{
+		// todo
+	}
+
+	return false;
 }
