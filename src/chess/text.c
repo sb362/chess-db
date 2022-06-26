@@ -516,7 +516,9 @@ struct Move parse_san(const char *san, struct PositionState state, bool *ok, FIL
 		}
 
 		unsigned rank = chop_next(&parser) - '1';
-		if (state.side_to_move == BLACK) rank ^= 7;
+		if (state.side_to_move == BLACK) {
+			rank ^= 7;
+		}
 
 		if (rank >= 8) {
 			log_error(&parser, "invalid rank");
@@ -590,8 +592,57 @@ error:
 struct Move parse_uci(const char *uci, struct PositionState state, bool *ok, FILE *stream) {
 	struct Move move = {0};
 
-	// TODO: implement parsing uci moves
-	//       should be much simpler (too tired now)
+		struct Parser parser = {
+		.output = stream,
+		.in = uci,
+		.offset = uci,
+	};
+
+	unsigned start_file, start_rank, end_file, end_rank;
+
+	if ((start_file = chop_next(&parser) - 'a') >= 8) goto invalid_file;
+	if ((start_rank = chop_next(&parser) - '1') >= 8) goto invalid_rank;
+	if ((end_file   = chop_next(&parser) - 'a') >= 8) goto invalid_file;
+	if ((end_rank   = chop_next(&parser) - '1') >= 8) goto invalid_rank;
+
+	move.start = 8*start_rank + start_file;
+	move.end = 8*end_rank + end_file;
+
+	// rotate board for black
+	if (state.side_to_move == BLACK) {
+		move.start ^= 56, move.end ^= 56;
+	}
+
+	// promotion
+	if (peek_next(&parser)) {
+		move.piece = lookup[chop_next(&parser)];
+		if (move.piece == None || move.piece == Pawn || move.piece == King) {
+			log_error(&parser, "invalid promotion piece");
+			goto error;
+		}
+	}
+
+	else {
+		get_square(state.pos, move.start);
+	}
+
+	enum { C1 = 2, E1 = 4, G1 = 6 };
+
+	// set castling flag (if needed)
+	if (move.piece == King && move.start == E1) {
+		if (move.end == C1 || move.end == G1) {
+			move.castling = true;
+		}
+	}
+
+	*ok = true;
+	return move;
+
+	if (0) invalid_file: log_error(&parser, "invalid file");
+	if (0) invalid_rank: log_error(&parser, "invalid rank");
+
+error:
+	*ok = false;
 
 	return move;
 }
@@ -798,20 +849,25 @@ size_t generate_san(struct Move move, struct PositionState state, char *buffer, 
 			bitboard occ = occupied(state.pos);
 
 			bitboard possible = generic_attacks(piece, move.end, occ);
-			possible &= pieces;
+			possible &= pieces & state.pos.white;
 
 			// more than two possible pieces
 			if (more_than_one(possible)) {
 				int file = move.start & 7;
 				int rank = move.start >> 3;
 
-				bitboard file_mask = AFILE << move.start;
+				bitboard file_mask = AFILE << file;
+				bitboard rank_mask = RANK1 << rank;
 
-				// rank differentiator needed
+				// check if differentiators needed
+				// note: some moves need both rank and file differentiators
+
+				if (more_than_one(possible & rank_mask)) {
+					write_char(&buffer, &count, file + 'a');
+				}
+
 				if (more_than_one(possible & file_mask)) {
 					write_char(&buffer, &count, rank + '1');
-				} else {
-					write_char(&buffer, &count, file + 'a');
 				}
 			}
 

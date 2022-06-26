@@ -65,10 +65,7 @@ struct Position make_move(struct Position pos, struct Move move) {
 	info  = ((info << 2) | (info >> 2)) & CA_MASK;
 
 	// rotate board
-	pos.X = reverse(pos.X);
-	pos.Y = reverse(pos.Y);
-	pos.Z = reverse(pos.Z);
-	pos.white = reverse(pos.white);
+	pos = rotate(pos);
 
 	// update new en-passant square
 	if (move.piece == Pawn && move.end - move.start == N+N)

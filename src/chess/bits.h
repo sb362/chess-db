@@ -33,8 +33,6 @@ static inline bitboard shiftW(bitboard bb) { return (bb & ~AFILE) >> 1; }
 #define _shift(n,...) __shift(n, __VA_ARGS__)
 #define shift(...) _shift(nargs(__VA_ARGS__), __VA_ARGS__)
 
-#define reverse(bb) bswap(bb)
-
 struct bitbase {
 	bitboard knight, king, mask[2], *attacks[2];
 };

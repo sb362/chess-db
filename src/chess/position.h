@@ -32,4 +32,13 @@ static inline bitboard occupied(struct Position pos) {
 	return (pos.X ^ pos.Y) | (pos.X ^ pos.Z);
 }
 
+static inline struct Position rotate(struct Position pos) {
+	pos.X = bswap(pos.X);
+	pos.Y = bswap(pos.Y);
+	pos.Z = bswap(pos.Z);
+	pos.white = bswap(pos.white);
+
+	return pos;
+}
+
 #endif /*POSITION_H_*/
