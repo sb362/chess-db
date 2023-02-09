@@ -1,21 +1,13 @@
 #pragma once
 
 #include "source_location.hh"
-#include "logger.hh"
 
 #include <array>
-#include <chrono>
 #include <format>
-#include <ostream>
 #include <string>
-
-using namespace std::chrono_literals;
 
 namespace cdb::log
 {
-
-using clock = std::chrono::high_resolution_clock;
-static const auto t0 = clock::now();
 
 enum class log_level {
   trace, debug, info, warn, error, fatal
@@ -41,25 +33,20 @@ struct log_context {
 class logger {
   std::string _name;
   log_level _level;
-  static std::ostream &os;
+
+  void vlog(log_level level, std::string_view fmt, std::format_args args,
+            const source_location sloc = source_location::current());
 
 public:
-  logger(std::string name) : _name(std::move(name)), _level(log_level::trace) {}
+  constexpr logger(std::string name) : _name(std::move(name)), _level(log_level::trace) {}
 
-  bool enabled(log_level level) const { return level >= _level; }
+  constexpr bool enabled(log_level level) const { return level >= _level; }
 
   template <typename ...Args>
   void log(log_level level, log_context ctx, Args &&...args)
   {
     if (enabled(level))
-    {
-      const auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - cdb::log::t0);
-      const auto fmtted = std::vformat(ctx.fmt, std::make_format_args(std::forward<Args>(args)...));
-
-      os << std::format("{} {:%T} {}:{} {} {}\n", 
-                        level, dt, ctx.sloc.file_name(),
-                        ctx.sloc.line(), ctx.sloc.function_name(), fmtted);
-    }
+      vlog(level, ctx.fmt, std::make_format_args(std::forward<Args>(args)...), ctx.sloc);
   }
 
   template <typename ...Args>
@@ -78,7 +65,7 @@ public:
   void error(log_context ctx, Args &&...args) { log(log_level::error, ctx, std::forward<Args>(args)...); }
 };
 
-} // log
+} // cdb::log
 
 template <>
 struct std::formatter<cdb::log::log_level> {
