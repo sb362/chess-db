@@ -1,9 +1,10 @@
 #pragma once
 
-
+#include "chess/bitboard.hh"
 #include "chess/movegen.hh"
+#include "chess/notation.hh"
 #include "chess/pgn.hh"
-
+#include "core/error.hh"
 #include "util/vector.hh"
 
 #include <algorithm>
@@ -94,6 +95,8 @@ struct TokenStream {
 
   constexpr TokenStream(std::string_view pgn, std::size_t pos = 0) : pgn(pgn), pos(pos) {}
 
+  bool eof() const { return pos >= pgn.size(); }
+
   bool accept(char c) {
     if (pgn[pos] == c) {
       ++pos;
@@ -126,7 +129,6 @@ struct TokenStream {
   }
 
   std::string_view peek(int start, std::size_t len = 0) const {
-    start = std::clamp(start, (int)pos, (int)(pgn.size()) - (int)pos);
     return pgn.substr(pos + start, len);
   }
 
@@ -199,14 +201,7 @@ struct Stack {
   }
 };
 
-enum class State {
-  InMainline,
-  EnterVariation,
-  InVariation,
-  ExitVariation,
-};
-
-enum class Result {
+enum class GameResult {
   Unknown = 0,
   Incomplete,
   White,
@@ -225,30 +220,33 @@ struct ParseStep {
   Move move {};
   std::string_view comment = "", san = "";
   std::size_t bytes_read = 0;
-
-  State state = State::InMainline;
+  unsigned move_no = 0;
   Position prev {}, next {};
-
-  Error error {};
 };
 
-template <class F> concept MoveVisitor = std::invocable<F, ParseStep>;
+template <class F> concept MoveVisitor = std::invocable<F, const ParseStep &>;
 template <class F> concept TagVisitor = std::invocable<F, std::string_view, std::string_view>;
 
-std::size_t parse_movetext(std::string_view pgn, MoveVisitor auto visitor) {
+struct ParseResult {
+  std::error_code ec;
+  std::string_view msg;
+  std::size_t bytes_read = 0;
+
+  ParseResult(std::size_t bytes_read, std::error_code ec = {}, std::string_view msg = {})
+    : ec(ec), msg(msg), bytes_read(bytes_read)
+  {
+  }
+};
+
+ParseResult parse_movetext(std::string_view pgn, MoveVisitor auto visitor) {
   TokenStream stream {pgn};
   Token token = stream.next_token();
-  Result result = Result::Unknown;
-  ParseStep step;
+  GameResult result = GameResult::Unknown;
+  ParseStep step {.next = startpos};
+  unsigned variation_depth = 0;
 
-  struct ParserFrame { Position prev, next; };
-  Stack<ParserFrame, 8> frames {};
-  frames.emplace(startpos, startpos);
-
-  for (; token; token = stream.next_token()) {
-    auto &top = frames.top();
-
-    step = {.bytes_read = stream.pos}; // reset
+  for (; token; ) {
+    step.bytes_read = stream.pos;
 
     // move number/result
     // if result: break
@@ -256,108 +254,137 @@ std::size_t parse_movetext(std::string_view pgn, MoveVisitor auto visitor) {
     // if open bracket: start new variation, continue
     // if close bracket: exit previous variation, continue
 
+    // eat any whitespace before move number
+    for (; token.is(WHITESPACE, NEWLINE); token = stream.next_token()) {}
+
     if (token.is(INTEGER, ASTERISK)) {
       if (token.is(ASTERISK)) {
-        result = Result::Incomplete;
+        result = GameResult::Incomplete;
         break;
       } else if (stream.accept('/')) {
-        if (stream.peek(-1, 7) == "1/2-1/2") {
-          result = Result::Draw;
+        auto ss = stream.peek(-2, 7);
+        if (ss == "1/2-1/2") {
+          result = GameResult::Draw;
           //stream.pos += 6;
         } else {
-          step.error = {"malformed result token", stream.pos - 1};
+          return {stream.pos - 1, ParseError::Invalid, "malformed result token"};
         }
 
         break;
       } else if (stream.accept('-')) {
-        const auto ss = stream.peek(-1, 3);
+        auto ss = stream.peek(-2, 3);
         if (ss == "1-0") {
-          result = Result::White;
+          result = GameResult::White;
           stream.pos += 2;
         } else if (ss == "0-1") {
-          result = Result::Black;
+          result = GameResult::Black;
           stream.pos += 2;
         } else {
-          step.error = {"malformed result token", stream.pos - 1};
+          return {stream.pos - 1, ParseError::Invalid, "malformed result token"};
         }
         break;
       } else if (stream.accept('.')) {
-        // move number
-        std::cout << "move no: " << token.contents << std::endl;
+        stream.accept('.');
+        stream.accept('.');
       } else {
+        return {stream.pos, ParseError::Invalid, "invalid move number"};
       }
+
+      token = stream.next_token();
     } else {
     }
 
     // eat any whitespace between move number and SAN
-    token = stream.next_token();
-    for (; token.is(WHITESPACE); token = stream.next_token()) {}
+    for (; token.is(WHITESPACE, NEWLINE); token = stream.next_token()) {}
 
     if (token.is(SYMBOL)) {
+      ++step.move_no;
       step.san = token.contents;
 
-      const auto move = parse_san(top.next, step.san, false);
-      assert(move);
+      // todo: fixme for black having side to move in starting position
+      auto move = chess::parse_san(step.san, step.next, step.move_no % 2 == 0);
+      if (!move)
+        return {stream.pos, move.error(), "invalid SAN"};
 
-      top.prev = std::exchange(top.next, make_move(top.next, move));
+      step.move = *move; // todo: check error
+      step.prev = std::exchange(step.next, chess::make_move(step.next, step.move));
+      token = stream.next_token();
     }
 
     // eat any NAGs and whitespace
-    token = stream.next_token();
-    for (; token.is(WHITESPACE, NAG); token = stream.next_token()) {
+    for (; token.is(WHITESPACE, NEWLINE, NAG); token = stream.next_token()) {
       if (token.is(NAG)) {
         // add NAG
       }
     }
 
-    // consome comment
+    // consume comment
     if (token.is(COMMENT)) {
       step.comment = token.contents;
+      token = stream.next_token();
+    } else {
+      step.comment = "";
     }
 
     step.bytes_read = stream.pos;
     visitor(step);
 
+    for (; token.is(WHITESPACE, NEWLINE); token = stream.next_token()) {}
+
     if (token.is(BRACKET)) {
+      // todo: handle variations
       if (token.contents == "(") {
+        ++variation_depth;
 
+        for (++stream.pos; variation_depth && !stream.eof(); ++stream.pos) {
+          char c = stream.pgn[stream.pos];
+          if (c == ')') --variation_depth;
+          if (c == '(') ++variation_depth;
+        }
       } else if (token.contents == ")") {
-
+        return {stream.pos, ParseError::Illegal, "unexpected closing bracket"};
       } else {
-        step.error = {"reserved token", stream.pos};
-        break;
+        return {stream.pos, ParseError::Reserved, "reserved token"};
       }
+
+      token = stream.next_token();
     }
   }
-  std::cout << "last token: " << token.contents << std::endl;
 
-  visitor(step);
-  return stream.pos;
+  if (result != GameResult::Unknown) {
+    // todo
+    //visitor(step);
+  }
+
+  return {stream.pos};
 }
 
-std::size_t parse_headers(std::string_view pgn, TagVisitor auto visitor) {
+ParseResult parse_tags(std::string_view pgn, TagVisitor auto visitor) {
   TokenStream stream {pgn};
   Token token;
 
-  for (; stream.accept('['); token = stream.next_token()) {
+  stream.eat("\r\n \t");
+  for (; stream.accept('['); stream.eat("\r\n \t")) {
     token = stream.next_token();
-    assert(token.type == SYMBOL);
+    if (token.type != SYMBOL)
+      return {stream.pos, ParseError::Invalid, "missing tag name"};
     
     std::string_view name = token.contents;
 
     stream.accept(' ');
 
     token = stream.next_token();
-    assert(token.type == STRING);
+    if (token.type != STRING)
+      return {stream.pos, ParseError::Invalid, "missing tag value"};
 
-    if (visitor(name, token.contents))
-      break;
 
-    assert(stream.accept(']'));
-    stream.eat("\r\n \t");
+    visitor(name, token.contents);
+
+    if (!stream.accept(']'))
+      return {stream.pos, ParseError::Invalid, "missing closing bracket"};
   }
   
-  return stream.pos;
+  return {token ? stream.pos : 0};
 }
 
 } // cdb::chess

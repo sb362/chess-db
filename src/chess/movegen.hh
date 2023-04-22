@@ -1,10 +1,11 @@
 #pragma once
 
-#include "position.hh"
-
+#include "chess/position.hh"
 #include "util/bits.hh"
 #include "util/vector.hh"
 
+#include <ostream>
+#include <utility>
 #include <vector>
 
 namespace cdb::chess {
@@ -17,6 +18,14 @@ struct Move {
   Square src, dst;
   PieceType piece;
   bool castling;
+
+  friend std::ostream &operator<<(std::ostream &os, const Move &move) { 
+    os << static_cast<char>((std::to_underlying(move.src) % 8) + 'a')
+       << static_cast<char>((std::to_underlying(move.src) / 8) + '1')
+       << static_cast<char>((std::to_underlying(move.dst) % 8) + 'a')
+       << static_cast<char>((std::to_underlying(move.dst) / 8) + '1');
+    return os;
+  }
 };
 
 using MoveList = static_vector<Move, 128>;
@@ -274,8 +283,17 @@ inline MoveList movegen(const Position &pos) {
   return movegen(pos, checkers, pinned);
 }
 
-constexpr Position make_move(Position pos, Move move) {
+#ifdef NDEBUG
+constexpr
+#else
+inline
+#endif
+Position make_move(Position pos, Move move) {
   using enum PieceType;
+
+#ifndef NDEBUG
+  bool white_to_move = pos.fen.contains('w');
+#endif
 
   bitboard clear  = square_bb(move.src) | square_bb(move.dst);
 
@@ -315,6 +333,10 @@ constexpr Position make_move(Position pos, Move move) {
   pos.y     = byteswap(pos.y);
   pos.z     = byteswap(pos.z);
   pos.white = byteswap(black);
+
+#ifndef NDEBUG
+  pos.fen = pos.to_fen(!white_to_move);
+#endif
 
   return pos;
 }

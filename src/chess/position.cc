@@ -1,16 +1,19 @@
-#include "position.hh"
+
 #include "util/bits.hh"
+#include "chess/position.hh"
+#include "core/logger.hh"
 
-#include <cassert>
-
+#include <algorithm>
 #include <iostream>
 
 using namespace cdb;
 using namespace chess;
 
+static const log::logger logger("fen");
+
 constexpr std::string_view PieceChars = "/pnbr/qk";
 
-Position Position::from_fen(std::string_view fen) {
+Result<Position> Position::from_fen(std::string_view fen) {
   Position pos {};
   bitboard white = 0, black = 0;
 
@@ -33,15 +36,23 @@ Position Position::from_fen(std::string_view fen) {
     } else if (c == ' ') {
       break;
     } else {
-      assert(!"unexpected character in piece placement");
-      return {};
+      // unexpected character in piece placement
+      logger.error(R"(unexpected character '{}': "{}")", c, get_context(fen, i, 8));
+      return std::unexpected(ParseError::Invalid);
     }
   }
-  assert(sq + South == A1);
+
+  if (sq + South != A1) {
+    logger.error(R"(incomplete piece placement: "{}")", get_context(fen, i, 8));
+    return std::unexpected(ParseError::Illegal);
+  }
 
   // side to move
   bool white_to_move = fen.at(++i) == 'w';
-  assert(white_to_move || fen[i] == 'b');
+  if (!(white_to_move || fen[i] == 'b')) {
+    logger.error(R"(invalid side to move '{}': "{}")", fen[i], get_context(fen, i, 8));
+    return std::unexpected(ParseError::Invalid);
+  }
 
   // castling
   if (char c = fen.at(i += 2); c != '-') {
@@ -57,7 +68,10 @@ Position Position::from_fen(std::string_view fen) {
     f('k', A8);
     f('q', H8);
 
-    assert(c == ' ');
+    if (c != ' ') {
+      logger.error(R"(expected space after castling: "{}")", fen[i], get_context(fen, i, 8));
+      return std::unexpected(ParseError::Invalid);
+    }
   } else {
     ++i; // eat '-'
   }
@@ -66,7 +80,10 @@ Position Position::from_fen(std::string_view fen) {
   bitboard ep = 0;
   if (char c = fen.at(++i); c != '-') {
     const uint8_t file = c - 'a', rank = (c = fen.at(++i)) - 'a';
-    assert(file < 8 && rank < 8);
+    if (file < 8 && rank < 8) {
+      logger.error(R"(invalid square "{}{}": "{}")", fen[i - 1], fen[i], get_context(fen, i, 8));
+      return std::unexpected(ParseError::Invalid);
+    }
 
     ep = square_bb(static_cast<Square>(8 * rank + file));
   }
@@ -80,6 +97,10 @@ Position Position::from_fen(std::string_view fen) {
     pos.z = byteswap(pos.z);
     pos.white = byteswap(black | ep);
   }
+
+#ifndef NDEBUG
+  pos.fen = pos.to_fen(!white_to_move);
+#endif
 
   return pos;
 }
@@ -130,11 +151,11 @@ std::string Position::to_fen(bool black) const {
   if (castling & square_bb(A1)) fen.push_back('Q');
   if (castling & square_bb(H8)) fen.push_back('k');
   if (castling & square_bb(A8)) fen.push_back('q');
+  if (!castling) fen.push_back('-');
 
   fen.push_back(' ');
 
   if (bitboard ep = pos.white &~ pos.occupied()) {
-    std::cout << ep << std::endl;
     const auto s = lsb(ep);
 
     fen.push_back('a' + (s % 8));

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "util/bits.hh"
+#include <cstdint>
 
 namespace cdb::chess {
 
@@ -17,6 +17,7 @@ constexpr bitboard FILE_A = 0x0101010101010101;
 constexpr bitboard FILE_H = 0x8080808080808080;
 constexpr bitboard RANK_1 = 0x00000000000000ff;
 constexpr bitboard RANK_3 = 0x0000000000ff0000;
+constexpr bitboard RANK_4 = 0x00000000ff000000;
 constexpr bitboard RANK_8 = 0xff00000000000000;
 
 constexpr bitboard file_bb(Square sq) {

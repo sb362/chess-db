@@ -1,11 +1,5 @@
 
-#include "movegen.hh"
-
-#include <array>
-#include <chrono>
-#include <format>
-#include <iostream>
-#include <string_view>
+#include "chess/movegen.hh"
 
 using namespace cdb;
 

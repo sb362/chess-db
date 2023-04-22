@@ -1,26 +1,18 @@
-#include "notation.hh"
 
 #include "chess/bitboard.hh"
-#include "movegen.hh"
-#include "position.hh"
-
-#include <iostream>
-#include <format>
+#include "chess/movegen.hh"
+#include "chess/notation.hh"
+#include "chess/position.hh"
 
 using namespace cdb;
 using namespace chess;
 
+#include <iostream>
+
 constexpr std::string_view PieceChars = "/PNBR/QK";
 
-std::optional<Move> chess::parse_san(std::string_view san, Position pos, bool black) {
+Result<Move> chess::parse_san(std::string_view san, Position pos, bool black) {
   using enum PieceType;
-
-  if (black) {
-    pos.white = byteswap(pos.occupied() & ~pos.white);
-    pos.x = byteswap(pos.x);
-    pos.y = byteswap(pos.y);
-    pos.z = byteswap(pos.z);
-  }
 
   unsigned i = 0;
   char c = san[i++];
@@ -35,37 +27,47 @@ std::optional<Move> chess::parse_san(std::string_view san, Position pos, bool bl
     c = san[i++];
   
     if ('1' <= c & c <= '8') {
-      const auto r = RANK_1 << (8 * (c - '1'));
+      const auto r = RANK_1 << (8 * (c - '1') ^ (black ? 56 : 0));
       targets &= r;
       targets &= f;
 
+      srcs &= shift<South>(targets) | walk<South, South>(targets & RANK_4);
+
     // captures
     } else if (c == 'x') {
-      c = san[i++];
-      assert('a' <= c && c <= 'h');
-      targets &= (FILE_A << (c - 'a'));
-      
-      c = san[i++];
-      assert('1' <= c && c <= '8');
-      targets &= (RANK_1 << (8 * (c - '1')));
+      // en passant
+      targets |= pos.white &~ pos.occupied();
 
+      c = san[i++];
+      if (!('a' <= c && c <= 'h'))
+        return std::unexpected(ParseError::Invalid);
+
+      targets &= (FILE_A << (c - 'a'));
+
+      c = san[i++];
+      if (!('1' <= c && c <= '8'))
+        return std::unexpected(ParseError::Invalid);
+
+      targets &= (RANK_1 << (8 * (c - '1') ^ (black ? 56 : 0)));
       srcs &= shiftm<SouthWest, SouthEast>(targets);
 
     } else {
-      assert(false);
+      return std::unexpected(ParseError::Invalid);
     }
 
     // promotion
     if (i < san.size() - 1 && san[i++] == '=') {
       size_t idx = PieceChars.find(san[i]);
-      assert(idx != std::string_view::npos);
+      
+      if (idx == std::string_view::npos)
+        return std::unexpected(ParseError::Invalid);
+
       piece_type = static_cast<PieceType>(idx);
     }
 
-    std::cout << std::format("{:x} {:x}\n", srcs, targets);
+    if (!only_one(srcs) || !only_one(targets))
+      return std::unexpected(ParseError::Ambiguous);
 
-    assert(only_one(srcs)); // todo: remove asserts, return nullopt instead
-    assert(only_one(targets));
     const auto src = static_cast<Square>(lsb(srcs));
     const auto dst = static_cast<Square>(lsb(targets));
 
@@ -82,7 +84,7 @@ std::optional<Move> chess::parse_san(std::string_view san, Position pos, bool bl
     }
 
     if (c = san[i]; '1' <= c && c <= '8') {
-      tmp &= RANK_1 << (8 * (c - '1')); // todo: move this into rank_bb
+      tmp &= RANK_1 << (8 * (c - '1') ^ (black ? 56 : 0)); // todo: move this into rank_bb
       ++i;
     }
 
@@ -97,23 +99,22 @@ std::optional<Move> chess::parse_san(std::string_view san, Position pos, bool bl
       ++i;
 
       c = san[i];
-      targets &= RANK_1 << (8 * (c - '1')); // todo: move this into rank_bb
+      targets &= RANK_1 << (8 * (c - '1') ^ (black ? 56 : 0)); // todo: move this into rank_bb
       ++i;
     } else {
       targets &= tmp;
     }
-  
-    std::cout << std::format("{:x} {:x}\n", pos.occupied(), pos.white);
-    std::cout << std::format("{:x} {:x}\n", srcs, targets);
 
-    assert(only_one(targets)); // todo: remove asserts, return nullopt instead
+    if (!only_one(targets))
+      return std::unexpected(ParseError::Ambiguous);
+
     const auto dst = static_cast<Square>(lsb(targets));
     if (more_than_one(srcs))
       srcs &= attacks_from(piece_type, dst, pos.occupied());
 
-    std::cout << std::format("{:x} {:x}\n", srcs, targets);
+    if (!only_one(srcs))
+      return std::unexpected(ParseError::Ambiguous);
 
-    assert(only_one(srcs));
     const auto src = static_cast<Square>(lsb(srcs));
   
     return Move {src, dst, piece_type, false};
@@ -125,7 +126,7 @@ std::optional<Move> chess::parse_san(std::string_view san, Position pos, bool bl
       return Move {E1, C1, King, true};
   }
 
-  return std::nullopt;
+  return std::unexpected(ParseError::Invalid);
 }
 
 std::string chess::to_san(Move move, Position pos, bool black) {

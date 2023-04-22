@@ -1,5 +1,7 @@
 #pragma once
 
+#include "util/vector.hh"
+
 #include <atomic>
 #include <concepts>
 #include <condition_variable>
@@ -11,8 +13,6 @@
 #include <semaphore>
 #include <stop_token>
 #include <thread>
-
-#include "util/vector.hh"
 
 namespace cdb::async {
 
@@ -58,9 +58,9 @@ private:
     std::jthread thread;
   };
 
-  cdb::stable_vector<worker, 4> workers;
-  std::atomic<std::size_t> pending;
-  std::size_t next_id;
+  cdb::stable_vector<worker, 4> workers {};
+  std::atomic<std::size_t> pending = 0;
+  std::size_t next_id = 0;
 
   void stop() {
     for (auto &w : workers) {
@@ -72,7 +72,6 @@ private:
 
 public:
   thread_pool(size_t n = std::thread::hardware_concurrency())
-    : workers(), pending(0), next_id(0)
   {
     resize(n);
   }
@@ -83,6 +82,9 @@ public:
 
   thread_pool(const thread_pool &) = delete;
   thread_pool &operator=(const thread_pool &) = delete;
+
+  thread_pool(thread_pool &&) = delete;
+  thread_pool &operator=(thread_pool &&) = delete;
 
   void resize(size_t n) {
     stop();

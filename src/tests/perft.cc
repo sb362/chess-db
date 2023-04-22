@@ -76,10 +76,14 @@ int main(int, char *[]) {
 
   for (const auto &test : tests) {
     const auto pos = Position::from_fen(test.fen);
+	if (!pos) {
+		std::cerr << "failed to parse FEN: " << test.fen << std::endl;
+		return -2;
+	}
 
     for (unsigned depth = 1; depth <= test.depth; ++depth) {
       const auto t0 = clock::now();
-      const auto count = perft(pos, depth);
+      const auto count = perft(*pos, depth);
       const auto dt = (clock::now() - t0) / 1us;
       const auto nps = dt == 0 ? count : (count / dt);
       std::cout << std::format(row_fmt, test.name, depth, count, dt, nps);

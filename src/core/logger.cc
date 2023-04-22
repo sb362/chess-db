@@ -1,5 +1,5 @@
 
-#include "logger.hh"
+#include "core/logger.hh"
 
 #include <chrono>
 #include <iostream>
@@ -10,7 +10,7 @@ using hr_clock = std::chrono::high_resolution_clock;
 static const auto t0 = hr_clock::now();
 
 void logger::vlog(log_level level, std::string_view fmt, std::format_args args,
-                  const source_location sloc)
+                  const source_location sloc) const
 {
     const auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(hr_clock::now() - t0);
     std::cerr << std::format("{} {:%T} {}:{} {} {}\n", 

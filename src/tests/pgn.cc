@@ -1,18 +1,56 @@
 #include "chess/notation.hh"
 #include "chess/movegen.hh"
 #include "chess/pgn.hh"
+#include "core/error.hh"
 
 #include <algorithm>
 #include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <filesystem>
 #include <sstream>
 
 using namespace cdb::chess;
 
-std::uint64_t count_games(const std::string &data) {
-  return data.size();
+
+
+std::uint64_t count_games(std::string_view data) {
+  std::size_t bytes_read = 0, games_parsed = 0;
+  for (; bytes_read < data.size(); ) {
+    auto r = parse_tags(data.substr(bytes_read), [] (auto , auto) {});
+    if (r.ec) {
+      std::cerr << "failed to parse tags in game " << games_parsed << '\n';
+      std::cerr << " err: " << r.ec.message() << '\n';
+      std::cerr << " msg: " << r.msg << '\n';
+      std::cerr << " pos: " << r.bytes_read << '\n';
+      std::cerr << "\"" << cdb::get_context(data, bytes_read + r.bytes_read, 24) << "\"\n";
+      break;
+    } else bytes_read += r.bytes_read;
+
+    if (r.bytes_read == 0) {
+      std::cerr << "no bytes read?\n";
+      break;
+    }
+
+    r = parse_movetext(data.substr(bytes_read), [] (const auto &) {});
+    if (r.ec) {
+      std::cerr << "failed to parse movetext in game " << games_parsed << '\n';
+      std::cerr << " err: " << r.ec.message() << '\n';
+      std::cerr << " msg: " << r.msg << '\n';
+      std::cerr << " pos: " << r.bytes_read << '\n';
+      std::cerr << "\"" << cdb::get_context(data, bytes_read + r.bytes_read, 24) << "\"\n";
+      break;
+    } else bytes_read += r.bytes_read;
+
+    if (r.bytes_read == 0) {
+      std::cerr << "no bytes read?\n";
+      break;
+    }
+
+    ++games_parsed;
+  }
+
+  return games_parsed;
 }
 
 struct PerftResult {
@@ -62,7 +100,7 @@ int main(int argc, char *argv[]) {
       const auto r = pgn_perft(pgn_file.path().string());
       tr += r;
 
-      std::cout << std::format("{} games in {} ms\n", r.games, r.dt);
+      std::cout << std::format("{} games in {} ms\n\n", r.games, r.dt / 1000);
     }
   } else if (fs::is_regular_file(path)) {
     std::cout << path << " (" << (fs::file_size(path) / 1024) << " KiB)\n";
@@ -72,6 +110,6 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  std::cout << std::format("\n{} games in {} ms\n", tr.games, tr.dt);
+  std::cout << std::format("\n{} games in {} ms\n", tr.games, tr.dt / 1000);
   return 0;
 }

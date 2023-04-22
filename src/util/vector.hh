@@ -88,7 +88,7 @@ public:
 
   template <typename U>
   struct base_iterator {
-    using iterator_category = std::contiguous_iterator_tag; // necessary?
+    using iterator_category = std::contiguous_iterator_tag;
 
     U *_ptr;
 

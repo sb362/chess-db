@@ -1,10 +1,11 @@
 #pragma once
 
-#include "source_location.hh"
+#include "util/source_location.hh"
 
 #include <array>
 #include <format>
 #include <string>
+#include <string_view>
 
 namespace cdb::log
 {
@@ -35,34 +36,33 @@ class logger {
   log_level _level;
 
   void vlog(log_level level, std::string_view fmt, std::format_args args,
-            const source_location sloc = source_location::current());
+            const source_location sloc = source_location::current()) const;
 
 public:
-  constexpr logger(std::string name) : _name(std::move(name)), _level(log_level::trace) {}
+  constexpr logger(std::string name, log_level level = log_level::trace) : _name(std::move(name)), _level(level) {}
 
   constexpr bool enabled(log_level level) const { return level >= _level; }
 
   template <typename ...Args>
-  void log(log_level level, log_context ctx, Args &&...args)
-  {
+  void log(log_level level, log_context ctx, Args &&...args) const {
     if (enabled(level))
       vlog(level, ctx.fmt, std::make_format_args(std::forward<Args>(args)...), ctx.sloc);
   }
 
   template <typename ...Args>
-  void trace(log_context ctx, Args &&...args) { log(log_level::trace, ctx, std::forward<Args>(args)...); }
+  void trace(log_context ctx, Args &&...args) const { log(log_level::trace, ctx, std::forward<Args>(args)...); }
 
   template <typename ...Args>
-  void debug(log_context ctx, Args &&...args) { log(log_level::debug, ctx, std::forward<Args>(args)...); }
+  void debug(log_context ctx, Args &&...args) const { log(log_level::debug, ctx, std::forward<Args>(args)...); }
 
   template <typename ...Args>
-  void info(log_context ctx, Args &&...args) { log(log_level::info, ctx, std::forward<Args>(args)...); }
+  void info(log_context ctx, Args &&...args) const { log(log_level::info, ctx, std::forward<Args>(args)...); }
 
   template <typename ...Args>
-  void warn(log_context ctx, Args &&...args) { log(log_level::warn, ctx, std::forward<Args>(args)...); }
+  void warn(log_context ctx, Args &&...args) const { log(log_level::warn, ctx, std::forward<Args>(args)...); }
 
   template <typename ...Args>
-  void error(log_context ctx, Args &&...args) { log(log_level::error, ctx, std::forward<Args>(args)...); }
+  void error(log_context ctx, Args &&...args) const { log(log_level::error, ctx, std::forward<Args>(args)...); }
 };
 
 } // cdb::log

@@ -1,0 +1,5 @@
+Diagnostics:
+  UnusedIncludes: Strict
+  ClangTidy:
+    Add: [modernize-*, performance-*, bugprone-*, cppcoreguidelines-*, llvm-include-order]
+    Remove: [modernize-use-trailing-return-type, bugprone-easily-swappable-parameters, cppcoreguidelines-avoid-magic-numbers]

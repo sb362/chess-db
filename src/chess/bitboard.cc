@@ -1,10 +1,8 @@
 
-#include <array>
-
 #include "chess/bitboard.hh"
 #include "util/bits.hh"
 
-#include "bitboard.hh"
+#include <array>
 
 using namespace cdb::chess;
 

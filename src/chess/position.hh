@@ -1,6 +1,8 @@
 #pragma once
 
-#include "bitboard.hh"
+#include "chess/bitboard.hh"
+#include "core/error.hh"
+#include "util/bits.hh"
 
 #include <string>
 #include <string_view>
@@ -52,8 +54,12 @@ struct Position {
     return x == pos.x && y == pos.y && z == pos.z && white == pos.white;
   }
 
-  static Position from_fen(std::string_view fen);
+  static Result<Position> from_fen(std::string_view fen);
   std::string to_fen(bool black) const;
+
+#ifndef NDEBUG
+  std::string fen = "<empty>";
+#endif
 };
 
 constexpr Position startpos {

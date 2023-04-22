@@ -3,50 +3,88 @@
 
 #include <format>
 #include <iostream>
-#include <sstream>
 #include <string>
-
-const std::string test = "1. e4 c5 2. e5 d5 3. exd6 Nf6 4. d7+ Nbxd7 5. Bb5 a5 6. b4 axb4 "
-                         "7. c4 bxc3 8. Nxc3 e5 9. d4 exd4 10. Qe2+ Qe7 11. Qxe7+ Kxe7 "
-                         "12. Bg5 Nb6 13. Nd5+ Nxd5 14. Nf3 Bf5 15. O-O-O Rxa2 16. Bd3 Bxd3 "
-                         "17. Rxd3 Ke8 18. Re1+ Ne3 19. fxe3 Bd6 20. exd4+ Kf8 21. dxc5 Ra1+ "
-                         "22. Kb2 Rxe1 23. Nxe1 b5 24. cxd6 h6 25. Bxf6 gxf6 26. d7 Kg7 "
-                         "27. d8=N Rxd8 28. Rxd8 b4 29. Nf3 b3 30. Kc3 b2 31. h4 b1=Q "
-                         "32. Rg8+ Kxg8 33. Ng5 fxg5 34. hxg5 hxg5 35. g4 Qg1 36. Kd3 f5 "
-                         "37. gxf5 g4 38. f6 g3 39. f7+ Kg7 40. f8=B+ Kg6 41. Bh6 g2 "
-                         "42. Be3 Qe1 43. Kc2 g1=Q 44. Kd3 Qgg3 45. Kd4 Qe5+ 46. Kd3 Q5xe3+ 47. Kc2 Q3c3#";
 
 using namespace cdb::chess;
 
-int main(int, char *[]) {
-  std::stringstream ss {test};
+#define keep_going false
 
-  ss >> std::skipws;
+int test(std::string_view fen, std::string_view san, std::string_view exp) {
+  std::cout << std::format("{:>32} {:>6} {:>32}\n", fen, san, exp);
 
-  std::string san;
-  bool black = false;
-  Position pos = startpos;
-
-  while (ss >> san) {
-    // skip move numbers
-    if (std::isdigit(san[0])) continue;
-
-    std::cout << san << std::endl;
-
-    const auto move = parse_san(san, pos, black);
-    assert(move);
-
-    const auto new_san = to_san(*move, pos, black);
-    if (new_san != san) {
-      std::cerr << "In position:\n  " << pos.to_fen(black) << '\n';
-      std::cerr << std::format("    {:x}\n    {:x}\n    {:x}\n    {:x}\n", pos.x, pos.y, pos.z, pos.white);
-      std::cerr << "Expected " << san << ", got " << new_san << '\n';
-      return -1;
-    }
-
-    black ^= 1;
-    pos = make_move(pos, *move);
+  auto pos = Position::from_fen(fen);
+  if (!pos) {
+    std::cerr << "from_fen failed: " << pos.error().message() << "\n";
+    return assert(keep_going), -1;
   }
+
+  auto move = parse_san(san, *pos, !fen.contains('w'));
+  if (!move) {
+    std::cerr << "parse_san failed: " << move.error().message() << "\n";
+    return assert(keep_going), -2;
+  }
+
+  pos = make_move(*pos, *move);
+  auto got = pos->to_fen(fen.contains('w'));
+
+  constexpr bool IgnoreEnpassant = true;
+  if (IgnoreEnpassant) {
+    got = got.substr(0, got.find_last_of(' '));
+    exp = exp.substr(0, exp.find_last_of(' '));
+  }
+
+  if (got != exp) {
+    std::cerr << "fen mismatch, got " << got << "\n";
+    return assert(keep_going), -3;
+  }
+
+  return 0;
+}
+
+int test_exfl(std::string_view fen, std::string_view san) {
+  std::cout << std::format("{:>32} {:>6} EXFL\n", fen, san);
+
+  auto pos = Position::from_fen(fen);
+  if (!pos) {
+    std::cerr << "from_fen failed: " << pos.error().message() << "\n";
+    return assert(keep_going), -1;
+  }
+
+  auto move = parse_san(san, *pos, fen.contains('b'));
+  if (!move)
+    return 0;
+
+  std::cerr << "parse_san passed: " << move.error().message() << "\n";
+  return assert(keep_going), -2;
+}
+
+int main(int, char *[]) {
+  std::cout << "best by test\n";
+  test("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -", "e4", "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq -");
+
+  std::cout << "\nblack pawn advancing two squares\n";
+  test("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq -", "e5", "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq -");
+
+  std::cout << "\ncapture (bishop takes knight)\n";
+  test("r1bqkbnr/1ppp1ppp/p1n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq -", "Bxc6", "r1bqkbnr/1ppp1ppp/p1B5/4p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq -");
+
+  std::cout << "\nrecapture (two pawns)\n";
+  test("r1bqkbnr/1ppp1ppp/p1B5/4p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq -", "dxc6", "r1bqkbnr/1pp2ppp/p1p5/4p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq -");
+
+  std::cout << "\ntwo pawns on same file\n";
+  test("8/R5p1/3k4/3n1bp1/1p6/1P3P1P/5KP1/8 b - -", "g6", "8/R7/3k2p1/3n1bp1/1p6/1P3P1P/5KP1/8 w - -");
+
+  std::cout << "\nshort castles (white)\n";
+  test("rnbqkb1r/pp2pppp/5n2/2pp4/8/5NP1/PPPPPPBP/RNBQK2R w KQkq -", "O-O", "rnbqkb1r/pp2pppp/5n2/2pp4/8/5NP1/PPPPPPBP/RNBQ1RK1 b kq -");
+
+  std::cout << "\nen passant (black)\n";
+  test("rnbqkb1r/pp2pppp/5n2/2p5/3pP3/5NP1/PPPP1PBP/RNBQ1RK1 b kq e3", "dxe3", "rnbqkb1r/pp2pppp/5n2/2p5/8/4pNP1/PPPP1PBP/RNBQ1RK1 w kq -");
+
+  std::cout << "\nambiguous capture (files)\n";
+  test("r1bqkb1r/pppppppp/5n2/2n5/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq -", "Ncxe4", "r1bqkb1r/pppppppp/5n2/8/3Pn3/2N2N2/PPP2PPP/R1BQKB1R w KQkq -");
+
+  std::cout << "\nambiguous capture (files, exfl)\n";
+  test_exfl("r1bqkb1r/pppppppp/5n2/2n5/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq -", "Nxe4");
 
   return 0;
 }
