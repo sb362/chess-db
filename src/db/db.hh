@@ -11,16 +11,16 @@ constexpr std::size_t NameLength = 64;
 
 struct DbHeader {
   std::uint64_t checksum;      // 8 bytes
-	std::uint32_t version;       // 4 bytes
+  std::uint32_t version;       // 4 bytes
 
-	std::string name;            // 64 bytes
+  std::string name;            // 64 bytes
 
-	std::uint64_t data_length;   // 8 bytes
-	std::uint64_t data_offset;   // 8 bytes
-	std::uint64_t data_checksum; // 8 bytes
+  std::uint64_t data_length;   // 8 bytes
+  std::uint64_t data_offset;   // 8 bytes
+  std::uint64_t data_checksum; // 8 bytes
 	
-	std::uint64_t no_games;      // 8 bytes
-	std::uint32_t no_pages;      // 4 bytes
+  std::uint64_t no_games;      // 8 bytes
+  std::uint32_t no_pages;      // 4 bytes
 
   std::uint64_t date_modified; // 8 bytes
 };
