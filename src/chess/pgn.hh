@@ -246,8 +246,6 @@ ParseResult parse_movetext(std::string_view pgn, MoveVisitor auto visitor) {
   unsigned variation_depth = 0;
 
   for (; token; ) {
-    step.bytes_read = stream.pos;
-
     // move number/result
     // if result: break
     // if move number: eat period & whitespace, parse SAN, parse NAGs, parse comment
@@ -373,15 +371,20 @@ ParseResult parse_tags(std::string_view pgn, TagVisitor auto visitor) {
 
     stream.accept(' ');
 
-    token = stream.next_token();
-    if (token.type != STRING)
-      return {stream.pos, ParseError::Invalid, "missing tag value"};
+    std::size_t pos = stream.pos;
+    bool closing_bracket = false;
+    for (++stream.pos; ; ++stream.pos) {
+      if (stream.accept(']')) {
+        closing_bracket = true;
+        break;
+      }
+    }
 
-
-    visitor(name, token.contents);
-
-    if (!stream.accept(']'))
+    if (!closing_bracket)
       return {stream.pos, ParseError::Invalid, "missing closing bracket"};
+
+    std::string_view value = pgn.substr(pos, stream.pos - pos - 1);
+    visitor(name, value);
   }
   
   return {token ? stream.pos : 0};
