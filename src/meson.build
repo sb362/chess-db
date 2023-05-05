@@ -21,6 +21,7 @@ endif
 # dependencies
 json_dep = dependency('rapidjson')
 doctest_dep = dependency('doctest')
+fmt_dep = dependency('fmt')
 
 # util
 util_srcs = []
@@ -28,7 +29,8 @@ util_hdrs = ['util/bits.hh', 'util/bytesize.hh', 'util/source_location.hh', 'uti
 
 install_headers(util_hdrs, preserve_path : true)
 
-util_lib = library('util', sources : util_srcs, include_directories : src_inc, install : true)
+util_lib = library('util', sources : util_srcs, include_directories : src_inc,
+                   dependencies : [fmt_dep], install : true)
 util_dep = declare_dependency(include_directories : src_inc)
 
 
@@ -39,7 +41,7 @@ core_hdrs = ['core/io.hh', 'core/logger.hh', 'core/error.hh']
 install_headers(core_hdrs, preserve_path : true)
 
 core_lib = library('core', sources : core_srcs, include_directories : src_inc,
-                   dependencies : [util_dep], install : true)
+                   dependencies : [util_dep, fmt_dep], install : true)
 core_dep = declare_dependency(include_directories : src_inc, link_with : [core_lib])
 
 
@@ -50,12 +52,12 @@ chess_hdrs = ['chess/bitboard.hh', 'chess/position.hh', 'chess/movegen.hh', 'che
 install_headers(chess_hdrs, preserve_path : true)
 
 chess_lib = library('chess', sources : chess_srcs, include_directories : src_inc,
-                    dependencies : [util_dep, core_dep, doctest_dep], install : true)
+                    dependencies : [util_dep, core_dep, fmt_dep, doctest_dep], install : true)
 chess_dep = declare_dependency(include_directories : src_inc, link_with : [chess_lib])
 
 chess_perft = executable('perft',       sources : 'chess/main.cc', dependencies : [chess_dep], install : true)
 chess_test  = executable('chess-tests', sources : ['chess/main.cc'] + chess_srcs,
-                                        dependencies : [util_dep, core_dep, doctest_dep],
+                                        dependencies : [util_dep, core_dep, fmt_dep, doctest_dep],
                                         install : true, cpp_args : '-DENABLE_TESTS')
 
 # db
@@ -65,7 +67,7 @@ db_hdrs = ['db/codec.hh', 'db/page.hh']
 install_headers(db_hdrs, preserve_path : true)
 
 db_lib = library('db', sources : db_srcs, include_directories : src_inc,
-                    dependencies : [util_dep, core_dep, chess_dep], install : true)
+                    dependencies : [util_dep, core_dep, fmt_dep, chess_dep], install : true)
 db_dep = declare_dependency(include_directories : src_inc, link_with : [db_lib])
 
 
@@ -79,4 +81,4 @@ db_dep = declare_dependency(include_directories : src_inc, link_with : [db_lib])
 #                    dependencies : [util_dep, core_dep, chess_dep, db_dep, json_dep], install : true)
 #search_dep = declare_dependency(include_directories : src_inc, link_with : [search_lib])
 
-main_exe = executable('cdb', 'main.cc', install : true, dependencies : [util_dep, core_dep, chess_dep, db_dep])
+main_exe = executable('cdb', 'main.cc', install : true, dependencies : [util_dep, core_dep, fmt_dep, chess_dep, db_dep])
