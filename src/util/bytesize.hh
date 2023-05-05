@@ -1,7 +1,8 @@
 #pragma once
 
+#include <fmt/format.h>
+
 #include <algorithm>
-#include <format>
 #include <tuple>
 #include <type_traits>
 
@@ -63,7 +64,7 @@ namespace cdb {
 }
 
 template <std::derived_from<cdb::bytes_base> B, typename CharT>
-struct std::formatter<B, CharT> {
+struct fmt::formatter<B, CharT> {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& pctx) {
     return pctx.begin();
@@ -71,6 +72,6 @@ struct std::formatter<B, CharT> {
 
   template <typename FormatContext>
   auto format(const B &b, FormatContext &fctx) const {
-    return std::format_to(fctx.out(), "{} {}", b.n / b.factor, b.units);
+    return fmt::format_to(fctx.out(), "{} {}", b.n / b.factor, b.units);
   }
 };

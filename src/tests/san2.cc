@@ -39,7 +39,7 @@ int main(int, char *[]) {
     const auto new_san = to_san(*move, pos, black);
     if (new_san != san) {
       std::cerr << "In position:\n  " << pos.to_fen(black) << '\n';
-      std::cerr << std::format("    {:x}\n    {:x}\n    {:x}\n    {:x}\n", pos.x, pos.y, pos.z, pos.white);
+      std::cerr << fmt::format("    {:x}\n    {:x}\n    {:x}\n    {:x}\n", pos.x, pos.y, pos.z, pos.white);
       std::cerr << "Expected " << san << ", got " << new_san << '\n';
       return -1;
     }

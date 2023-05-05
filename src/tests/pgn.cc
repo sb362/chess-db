@@ -13,7 +13,6 @@
 using namespace cdb::chess;
 
 
-
 std::uint64_t count_games(std::string_view data) {
   std::size_t bytes_read = 0, games_parsed = 0;
   for (; bytes_read < data.size(); ) {
@@ -100,7 +99,7 @@ int main(int argc, char *argv[]) {
       const auto r = pgn_perft(pgn_file.path().string());
       tr += r;
 
-      std::cout << std::format("{} games in {} ms\n\n", r.games, r.dt / 1000);
+      std::cout << fmt::format("{} games in {} ms\n\n", r.games, r.dt / 1000);
     }
   } else if (fs::is_regular_file(path)) {
     std::cout << path << " (" << (fs::file_size(path) / 1024) << " KiB)\n";
@@ -110,6 +109,6 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  std::cout << std::format("\n{} games in {} ms\n", tr.games, tr.dt / 1000);
+  std::cout << fmt::format("\n{} games in {} ms\n", tr.games, tr.dt / 1000);
   return 0;
 }

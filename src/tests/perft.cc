@@ -72,7 +72,7 @@ int main(int, char *[]) {
   std::uint64_t avg = 0, runs = 0;
 
   constexpr std::string_view row_fmt = "{:<8} {:<5} {:<10} {:<10} {:<10}\n";
-  std::cout << std::format(row_fmt, "position", "depth", "count", "time (μs)", "speed (Mnps)");
+  std::cout << fmt::format(row_fmt, "position", "depth", "count", "time (μs)", "speed (Mnps)");
 
   for (const auto &test : tests) {
     const auto pos = Position::from_fen(test.fen);
@@ -86,7 +86,7 @@ int main(int, char *[]) {
       const auto count = perft(*pos, depth);
       const auto dt = (clock::now() - t0) / 1us;
       const auto nps = dt == 0 ? count : (count / dt);
-      std::cout << std::format(row_fmt, test.name, depth, count, dt, nps);
+      std::cout << fmt::format(row_fmt, test.name, depth, count, dt, nps);
 
       if (count != test.counts[depth - 1]) {
         std::cerr << " Expected " << test.counts[depth - 1] << "!";
