@@ -57,7 +57,7 @@ struct Position {
   static Result<Position> from_fen(std::string_view fen);
   std::string to_fen(bool black) const;
 
-#ifndef NDEBUG
+#ifdef CHESS_DEBUG_POS
   std::string fen = "<empty>";
 #endif
 };

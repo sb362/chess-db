@@ -98,7 +98,7 @@ Result<Position> Position::from_fen(std::string_view fen) {
     pos.white = byteswap(black | ep);
   }
 
-#ifndef NDEBUG
+#ifdef CHESS_DEBUG_POS
   pos.fen = pos.to_fen(!white_to_move);
 #endif
 

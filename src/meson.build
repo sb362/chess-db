@@ -11,14 +11,16 @@ if cpp.get_id() == 'clang' or cpp.get_id() == 'gcc'
     add_project_arguments('-fconstexpr-steps=11180420', language : 'cpp')
   endif
 
-  add_project_arguments('-g3', language : 'cpp')
-
   if host_machine.system() == 'windows' # hack for colours on windows
     add_project_arguments('-fansi-escape-codes',  language : 'cpp')
   endif
 elif cpp.get_id() == 'msvc'
   add_project_arguments('/constexpr:steps21180420', language : 'cpp')
 endif
+
+# dependencies
+json_dep = dependency('rapidjson')
+doctest_dep = dependency('doctest')
 
 # util
 util_srcs = []
@@ -48,9 +50,13 @@ chess_hdrs = ['chess/bitboard.hh', 'chess/position.hh', 'chess/movegen.hh', 'che
 install_headers(chess_hdrs, preserve_path : true)
 
 chess_lib = library('chess', sources : chess_srcs, include_directories : src_inc,
-                    dependencies : [util_dep, core_dep], install : true)
+                    dependencies : [util_dep, core_dep, doctest_dep], install : true)
 chess_dep = declare_dependency(include_directories : src_inc, link_with : [chess_lib])
 
+chess_perft = executable('perft',       sources : 'chess/main.cc', dependencies : [chess_dep], install : true)
+chess_test  = executable('chess-tests', sources : ['chess/main.cc'] + chess_srcs,
+                                        dependencies : [util_dep, core_dep, doctest_dep],
+                                        install : true, cpp_args : '-DENABLE_TESTS')
 
 # db
 db_srcs = ['db/db.cc']
@@ -63,18 +69,14 @@ db_lib = library('db', sources : db_srcs, include_directories : src_inc,
 db_dep = declare_dependency(include_directories : src_inc, link_with : [db_lib])
 
 
-# main
+# search
+#search_srcs = ['search/search.cc']
+#search_hdrs = ['search/search.hh', 'search/rule.hh', 'search/query.hh']
+
+#install_headers(db_hdrs, preserve_path : true)
+
+#search_lib = library('search', sources : search_srcs, include_directories : src_inc,
+#                    dependencies : [util_dep, core_dep, chess_dep, db_dep, json_dep], install : true)
+#search_dep = declare_dependency(include_directories : src_inc, link_with : [search_lib])
+
 main_exe = executable('cdb', 'main.cc', install : true, dependencies : [util_dep, core_dep, chess_dep, db_dep])
-
-perft_exe = executable('perft', 'tests/perft.cc', install : true, dependencies : [util_dep, core_dep, chess_dep])
-test('perft', perft_exe)
-
-san_exe = executable('san', 'tests/san.cc', install : true, dependencies : [util_dep, core_dep, chess_dep])
-test('san', san_exe)
-
-san2_exe = executable('san2', 'tests/san2.cc', install : true, dependencies : [util_dep, core_dep, chess_dep])
-test('san2', san2_exe)
-
-pgn_exe = executable('pgn', 'tests/pgn.cc', install : true, dependencies : [util_dep, core_dep, chess_dep])
-test('pgn', pgn_exe)
-

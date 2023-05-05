@@ -68,7 +68,7 @@ namespace cdb::db {
     }
   
   public: /* codec */
-    struct Moves {
+    /*struct Moves {
       const Game &game;
 
       GameDecoder begin() const {
@@ -92,7 +92,7 @@ namespace cdb::db {
         return {};
       }
     };
-    Tags tags() const { return {*this}; }
+    Tags tags() const { return {*this};*/
 
   public: /* manipulating game data */
 

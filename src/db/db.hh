@@ -5,6 +5,8 @@
 
 namespace cdb::db {
 
+class GameDecoder;
+
 constexpr std::string_view Magic = "\u00bfChessDB\x1a\r\n";
 constexpr std::size_t HeaderSize = 128;
 constexpr std::size_t NameLength = 64;
@@ -99,13 +101,7 @@ public:
   static Result<Db> create(const fs::path &path, std::size_t size /*bytes*/);
   static Result<Db> from_pgn(const fs::path &db_path, const fs::path &pgn_path);
 
-  void for_each(std::invocable<> auto fn) {
-    for (auto &page : *page_alloc) {
-      for (auto &game : page.games()) {
-        
-      }
-    }
-  }
+  //std::unique_ptr<GameDecoder> make_decoder() const;
 };
 
 } // cdb::db

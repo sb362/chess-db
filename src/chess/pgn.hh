@@ -298,6 +298,9 @@ ParseResult parse_movetext(std::string_view pgn, MoveVisitor auto visitor) {
     if (token.is(SYMBOL)) {
       ++step.move_no;
       step.san = token.contents;
+      if (step.san == "Nd4") {
+          std::cout << "hello\n";
+      }
 
       // todo: fixme for black having side to move in starting position
       auto move = chess::parse_san(step.san, step.next, step.move_no % 2 == 0);

@@ -158,3 +158,6 @@ Result<Db> Db::from_pgn(const fs::path &db_path, const fs::path &pgn_path) {
   return db;
 }
 
+/*std::unique_ptr<GameDecoder> Db::make_decoder() const {
+  return nullptr;
+}*/

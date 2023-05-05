@@ -283,7 +283,7 @@ inline MoveList movegen(const Position &pos) {
   return movegen(pos, checkers, pinned);
 }
 
-#ifdef NDEBUG
+#ifndef CHESS_DEBUG_POS
 constexpr
 #else
 inline
@@ -291,7 +291,7 @@ inline
 Position make_move(Position pos, Move move) {
   using enum PieceType;
 
-#ifndef NDEBUG
+#ifdef CHESS_DEBUG_POS
   bool white_to_move = pos.fen.contains('w');
 #endif
 
@@ -334,7 +334,7 @@ Position make_move(Position pos, Move move) {
   pos.z     = byteswap(pos.z);
   pos.white = byteswap(black);
 
-#ifndef NDEBUG
+#ifdef CHESS_DEBUG_POS
   pos.fen = pos.to_fen(!white_to_move);
 #endif
 

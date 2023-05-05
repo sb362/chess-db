@@ -78,7 +78,7 @@ public:
   // returns index of first space that is at least min_size bytes long
   int find_space_and_split(std::size_t new_size) {
     int i = find_space(new_size);
-    if (i == -1)
+    if (i < 0)
       return -1;
 
     // split
