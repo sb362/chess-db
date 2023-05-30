@@ -3,6 +3,7 @@
 #include "chess/bitboard.hh"
 #include "core/error.hh"
 #include "util/bits.hh"
+#include "util/unordered_dense.h"
 
 #include <string>
 #include <string_view>
@@ -13,6 +14,7 @@ struct Position {
   bitboard x, y, z, white;
 
   constexpr bitboard occupied() const { return x | y | z; }
+  
   constexpr bitboard extract(PieceType piece_type) const {
     if (piece_type == PieceType::Rook) return z & ~y;
 
@@ -49,7 +51,7 @@ struct Position {
     return {byteswap(x), byteswap(y), byteswap(z), byteswap(white)};
   }
 
-  constexpr bool operator!=(const Position &pos) const { return *this == pos; }
+  constexpr bool operator!=(const Position &pos) const { return !(*this == pos); }
   constexpr bool operator==(const Position &pos) const {
     return x == pos.x && y == pos.y && z == pos.z && white == pos.white;
   }
@@ -62,7 +64,7 @@ struct Position {
 #endif
 };
 
-constexpr Position startpos {
+constexpr Position Startpos {
   .x = 0xb5ff00000000ffb5,
   .y = 0x7e0000000000007e,
   .z = 0x9900000000000099,

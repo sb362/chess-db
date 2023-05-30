@@ -57,8 +57,13 @@ namespace cdb {
       constexpr std::tuple<bytes, kibibytes, mebibytes, gibibytes, tebibytes> sizes {};
       
       [&]<auto... I>(std::index_sequence<I...>) {
-        (void)(((n_bytes >= std::get<I>(sizes).factor) ? (factor = std::get<I>(sizes).factor, units = std::get<I>(sizes).units, true) : false) && ...);
+        (void)(((n_bytes >= std::get<I>(sizes).factor)
+                ? (factor = std::get<I>(sizes).factor, units = std::get<I>(sizes).units, true) : false) && ...);
       } (std::make_index_sequence<std::tuple_size_v<decltype(sizes)>>());
+    }
+
+    constexpr std::string string() const {
+      return fmt::format("{:.1f} {}", static_cast<double>(n) / factor, units);
     }
   };
 }

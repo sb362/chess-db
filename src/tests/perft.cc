@@ -1,5 +1,7 @@
 #include "chess/movegen.hh"
 
+#include <fmt/format.h>
+
 #include <array>
 #include <chrono>
 #include <format>

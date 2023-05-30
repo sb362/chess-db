@@ -68,7 +68,11 @@ public:
 
   template <class ...Args>
   constexpr decltype(auto) emplace_back(Args &&...args) {
+    if (_n >= capacity()) {
+      std::abort();
+    }
     assert(_n < capacity());
+    
     return *std::construct_at(data() + _n++, std::forward<Args>(args)...);
   }
 
@@ -86,41 +90,38 @@ public:
   constexpr reference operator[](size_type i) noexcept { assert(i < _n); return *(data() + i); }
   constexpr const_reference operator[](size_type i) const noexcept { assert(i < _n); return *(data() + i); }
 
-  template <typename U>
-  struct base_iterator {
-    using iterator_category = std::contiguous_iterator_tag;
+  using iterator = value_type *;
+  using const_iterator = const value_type *;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
-    U *_ptr;
+  constexpr iterator begin() noexcept { return data(); }
+  constexpr iterator end() noexcept { return data() + size(); }
 
-    constexpr base_iterator(U *ptr) noexcept
-      : _ptr(ptr) {}
+  constexpr const_iterator begin() const noexcept { return data(); }
+  constexpr const_iterator end() const noexcept { return data() + size(); }
 
-    constexpr U &operator*() const { return *_ptr; }
-    constexpr U *operator->() const { return _ptr; }
+  constexpr const_iterator cbegin() const noexcept { return begin(); }
+  constexpr const_iterator cend() const noexcept { return end(); }
 
-    constexpr base_iterator &operator++() { ++_ptr; return *this; }
-    constexpr base_iterator &operator++(int) { auto tmp = *this; ++*this; return tmp; }
+  constexpr reverse_iterator rbegin() noexcept { return end(); }
+  constexpr reverse_iterator rend() noexcept { return begin(); }
 
-    constexpr bool operator==(const base_iterator &b) const { return _ptr == b._ptr; }
-    constexpr bool operator!=(const base_iterator &b) const { return _ptr != b._ptr; }
-  };
-
-  using iterator = base_iterator<value_type>;
-  using const_iterator = base_iterator<const value_type>;
-
-  constexpr iterator begin() noexcept { return iterator(data()); }
-  constexpr iterator end() noexcept { return iterator(data() + size()); }
-
-  constexpr const_iterator begin() const noexcept { return const_iterator(data()); }
-  constexpr const_iterator end() const noexcept { return const_iterator(data() + size()); }
-
-  constexpr const_iterator cbegin() const noexcept { return const_iterator(data()); }
-  constexpr const_iterator cend() const noexcept { return const_iterator(data() + size()); }
+  constexpr const_reverse_iterator rbegin() const noexcept { return end(); }
+  constexpr const_reverse_iterator rend() const noexcept { return begin(); }
 
   constexpr void clear() noexcept {
     while (_n)
       std::destroy_at(data() + --_n);
   };
+
+  constexpr int index_of(const value_type &v) const noexcept {
+    for (int i = 0; i < size(); ++i)
+      if (*(data() + i) == v) // todo
+        return i;
+
+    return -1;
+  }
 };
 
 template <class T, std::size_t ChunkSize>

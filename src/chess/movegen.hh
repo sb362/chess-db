@@ -26,9 +26,13 @@ struct Move {
        << static_cast<char>((std::to_underlying(move.dst) / 8) + '1');
     return os;
   }
+
+  constexpr bool operator==(const Move &b) const noexcept {
+    return src == b.src && dst == b.dst && piece == b.piece && castling == b.castling;
+  }
 };
 
-using MoveList = static_vector<Move, 128>;
+using MoveList = static_vector<Move, 160>;
 
 namespace detail {
 
@@ -161,10 +165,12 @@ inline void append_king_moves(MoveList &moves, const Position &pos, bitboard att
   
   if ((castle & square_bb(A1)) && !(occ & qside_occ) && !(attacked & qside_attk))
     moves.emplace_back(E1, C1, King, true);
-  
+
   if ((castle & square_bb(H1)) && !(occ & kside_occ) && !(attacked & kside_attk))
     moves.emplace_back(E1, G1, King, true);
 }
+
+} // detail
 
 inline bitboard enemy_attacks(const Position &pos, bitboard &checkers) {
   using enum PieceType;
@@ -242,8 +248,6 @@ inline bitboard pinned_pieces(const Position &pos, Square ksq)
 
   return pinned;
 }
-
-} // detail
 
 inline MoveList movegen(const Position &pos, bitboard &checkers, bitboard &pinned) {
   using namespace detail;

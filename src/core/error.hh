@@ -1,5 +1,8 @@
 #pragma once
 
+#include "util/misc.hh"
+
+#include <charconv>
 #include <expected>
 #include <string>
 #include <string_view>
@@ -11,7 +14,8 @@ using Result = std::expected<T, E>;
 
 enum class CoreError {
   Success = 0,
-  NotImplemented
+  NotImplemented,
+  OutOfRange
 };
 
 template <> struct std::is_error_code_enum<CoreError> : std::true_type {};
@@ -30,29 +34,73 @@ enum class IOError {
 template <> struct std::is_error_code_enum<IOError> : std::true_type {};
 std::error_code make_error_code(IOError e);
 
-enum class ParseError {
+
+enum class FENParseError {
   Success = 0,
-  Invalid,
-  Illegal,
+  UnexpectedInPiecePlacement,
+  IncompletePiecePlacement,
+  InvalidSideToMove,
+  InvalidCastling,
+  InvalidEPSquare,
+  MissingSpace
+};
+
+template <> struct std::is_error_code_enum<FENParseError> : std::true_type {};
+std::error_code make_error_code(FENParseError e);
+
+enum class SANParseError {
+  Success = 0,
+  InvalidInput,
+  InvalidFile,
+  InvalidRank,
+  InvalidPiece,
   Ambiguous,
-  Reserved
+  MissingPiece,
 };
 
-template <> struct std::is_error_code_enum<ParseError> : std::true_type {};
-std::error_code make_error_code(ParseError e);
+template <> struct std::is_error_code_enum<SANParseError> : std::true_type {};
+std::error_code make_error_code(SANParseError e);
 
-enum class DbError {
+enum class PGNParseError {
   Success = 0,
+  UnterminatedQuote,
+  UnterminatedTag,
+  UnterminatedComment,
+  UnterminatedVariation,
+  MalformedResultToken,
+  InvalidMoveNumber,
+  ReservedToken,
+  MalformedTag,
+  NotInVariation,
 
-  BadMagic,
-  BadChecksum,
-
-  OutOfMemory,
+  UnsupportedVariant,
+  CustomFENNotImplemented,
 };
+template <> struct std::is_error_code_enum<PGNParseError> : std::true_type {};
+std::error_code make_error_code(PGNParseError e);
 
-template <> struct std::is_error_code_enum<DbError> : std::true_type {};
-std::error_code make_error_code(DbError e);
 
 namespace cdb {
+  struct ParseResult {
+    std::size_t pos;
+    std::error_code ec = PGNParseError::Success;
+    std::string_view context = "";
+
+    explicit operator bool() const noexcept {
+      return !ec;
+    }
+  };
+
   std::string_view get_context(std::string_view s, std::size_t pos, std::size_t max_size);
+
+  template <Numeric T>
+  Result<T> parse_numerical(std::string_view s) {
+    T x;
+    std::errc err = std::from_chars(s.data(), s.data() + s.size(), x).ec;
+    if (err == std::errc()) {
+      return std::unexpected(err);
+    } else {
+      return x;
+    }
+  };
 } // cdb

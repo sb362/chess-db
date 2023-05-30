@@ -75,10 +75,14 @@ constexpr auto pdep(std::uint64_t x, std::uint64_t mask) -> std::uint64_t {
   }
 }
 
-template <unsigned B>
-using uint_t = std::tuple_element_t<(B > 1 + B > 2 + B > 4),
-                                    std::tuple<std::uint8_t, std::uint16_t,
-                                               std::uint32_t, std::uint64_t>>;
+template <unsigned B> struct uint_t_ { using type = uint_t_<B + 1>::type; };
+template <> struct uint_t_<sizeof(std::uint8_t)> { using type = std::uint8_t; };
+template <> struct uint_t_<sizeof(std::uint16_t)> { using type = std::uint16_t; };
+template <> struct uint_t_<sizeof(std::uint32_t)> { using type = std::uint32_t; };
+template <> struct uint_t_<sizeof(std::uint64_t)> { using type = std::uint64_t; };
+template <> struct uint_t_<32> { using type = void; };
+
+template <unsigned B> using uint_t = uint_t_<B>::type;
 
 template <std::unsigned_integral T, std::size_t S, std::size_t B = sizeof(T)>
 constexpr auto read_le(std::span<const std::byte, S> data, std::size_t offset = 0) -> T {

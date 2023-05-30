@@ -38,20 +38,20 @@ Result<Position> Position::from_fen(std::string_view fen) {
     } else {
       // unexpected character in piece placement
       logger.error(R"(unexpected character '{}': "{}")", c, get_context(fen, i, 8));
-      return std::unexpected(ParseError::Invalid);
+      return std::unexpected(FENParseError::UnexpectedInPiecePlacement);
     }
   }
 
   if (sq + South != A1) {
     logger.error(R"(incomplete piece placement: "{}")", get_context(fen, i, 8));
-    return std::unexpected(ParseError::Illegal);
+    return std::unexpected(FENParseError::IncompletePiecePlacement);
   }
 
   // side to move
   bool white_to_move = fen.at(++i) == 'w';
   if (!(white_to_move || fen[i] == 'b')) {
     logger.error(R"(invalid side to move '{}': "{}")", fen[i], get_context(fen, i, 8));
-    return std::unexpected(ParseError::Invalid);
+    return std::unexpected(FENParseError::InvalidSideToMove);
   }
 
   // castling
@@ -70,7 +70,7 @@ Result<Position> Position::from_fen(std::string_view fen) {
 
     if (c != ' ') {
       logger.error(R"(expected space after castling: "{}")", fen[i], get_context(fen, i, 8));
-      return std::unexpected(ParseError::Invalid);
+      return std::unexpected(FENParseError::MissingSpace);
     }
   } else {
     ++i; // eat '-'
@@ -82,7 +82,7 @@ Result<Position> Position::from_fen(std::string_view fen) {
     const uint8_t file = c - 'a', rank = (c = fen.at(++i)) - 'a';
     if (file < 8 && rank < 8) {
       logger.error(R"(invalid square "{}{}": "{}")", fen[i - 1], fen[i], get_context(fen, i, 8));
-      return std::unexpected(ParseError::Invalid);
+      return std::unexpected(FENParseError::InvalidEPSquare);
     }
 
     ep = square_bb(static_cast<Square>(8 * rank + file));

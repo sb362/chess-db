@@ -139,9 +139,9 @@ struct TokenStream {
 
     switch (type)
     {
-    case INTEGER:
-    case WHITESPACE:
     case NEWLINE:
+    case WHITESPACE:
+    case INTEGER:
     case PERIOD:
       do { c = pgn[++pos]; } while (pgn_lookup[c] == type && pos < pgn.size());
       return {type, pgn.substr(start_pos, pos - start_pos)};
@@ -178,26 +178,9 @@ struct TokenStream {
 
     return {NONE, ""};
   }
-};
 
-template <typename T, std::size_t Size>
-struct Stack {
-  static_vector<T, Size> data;
-
-  constexpr void push(T &&value) { data.push_back(std::forward<T>(value)); }
-
-  template <typename ...Args>
-  constexpr decltype(auto) emplace(Args &&...args) {
-    return data.emplace_back(std::forward<Args>(args)...);
-  }
-
-  constexpr T &top() { return data.back(); }
-  constexpr const T &top() const { return data.back(); }
-
-  constexpr T pop() {
-    auto &&value = std::move(data.back());
-    data.pop_back();
-    return value;
+  std::string_view context() const {
+    return get_context(pgn, pos, 8);
   }
 };
 
@@ -207,13 +190,6 @@ enum class GameResult {
   White,
   Draw,
   Black
-};
-
-struct Error {
-  std::string_view reason;
-  std::size_t pos = 0;
-
-  constexpr operator bool() const { return !reason.empty(); }
 };
 
 struct ParseStep {
@@ -226,19 +202,12 @@ struct ParseStep {
 
 template <class F> concept MoveVisitor = std::invocable<F, const ParseStep &>;
 template <class F> concept TagVisitor = std::invocable<F, std::string_view, std::string_view>;
+template <class F> concept ResultVisitor = std::invocable<F, GameResult>;
+template <class F> concept ErrorVisitor = std::invocable<F, ParseResult>;
 
-struct ParseResult {
-  std::error_code ec;
-  std::string_view msg;
-  std::size_t bytes_read = 0;
 
-  ParseResult(std::size_t bytes_read, std::error_code ec = {}, std::string_view msg = {})
-    : ec(ec), msg(msg), bytes_read(bytes_read)
-  {
-  }
-};
-
-ParseResult parse_movetext(std::string_view pgn, MoveVisitor auto visitor) {
+ParseResult parse_movetext(std::string_view pgn, MoveVisitor auto visitor,
+                           ResultVisitor auto result_visitor, Position startpos = Startpos) {
   TokenStream stream {pgn};
   Token token = stream.next_token();
   GameResult result = GameResult::Unknown;
@@ -263,9 +232,9 @@ ParseResult parse_movetext(std::string_view pgn, MoveVisitor auto visitor) {
         auto ss = stream.peek(-2, 7);
         if (ss == "1/2-1/2") {
           result = GameResult::Draw;
-          //stream.pos += 6;
+          stream.pos += 6;
         } else {
-          return {stream.pos - 1, ParseError::Invalid, "malformed result token"};
+          return {stream.pos - 1, PGNParseError::MalformedResultToken, stream.context()};
         }
 
         break;
@@ -278,14 +247,14 @@ ParseResult parse_movetext(std::string_view pgn, MoveVisitor auto visitor) {
           result = GameResult::Black;
           stream.pos += 2;
         } else {
-          return {stream.pos - 1, ParseError::Invalid, "malformed result token"};
+          return {stream.pos - 1, PGNParseError::MalformedResultToken, stream.context()};
         }
         break;
       } else if (stream.accept('.')) {
         stream.accept('.');
         stream.accept('.');
       } else {
-        return {stream.pos, ParseError::Invalid, "invalid move number"};
+        return {stream.pos, PGNParseError::InvalidMoveNumber, stream.context()};
       }
 
       token = stream.next_token();
@@ -298,16 +267,13 @@ ParseResult parse_movetext(std::string_view pgn, MoveVisitor auto visitor) {
     if (token.is(SYMBOL)) {
       ++step.move_no;
       step.san = token.contents;
-      if (step.san == "Nd4") {
-          std::cout << "hello\n";
-      }
 
       // todo: fixme for black having side to move in starting position
       auto move = chess::parse_san(step.san, step.next, step.move_no % 2 == 0);
       if (!move)
-        return {stream.pos, move.error(), "invalid SAN"};
+        return {stream.pos, move.error(), stream.context()};
 
-      step.move = *move; // todo: check error
+      step.move = *move;
       step.prev = std::exchange(step.next, chess::make_move(step.next, step.move));
       token = stream.next_token();
     }
@@ -343,18 +309,106 @@ ParseResult parse_movetext(std::string_view pgn, MoveVisitor auto visitor) {
           if (c == '(') ++variation_depth;
         }
       } else if (token.contents == ")") {
-        return {stream.pos, ParseError::Illegal, "unexpected closing bracket"};
+        return {stream.pos, PGNParseError::NotInVariation, stream.context()};
       } else {
-        return {stream.pos, ParseError::Reserved, "reserved token"};
+        return {stream.pos, PGNParseError::ReservedToken, stream.context()};
       }
 
       token = stream.next_token();
     }
   }
 
-  if (result != GameResult::Unknown) {
-    // todo
-    //visitor(step);
+  if (stream.pos > 0)
+    result_visitor(result);
+
+  return {stream.pos};
+}
+
+inline ParseResult skip_movetext(std::string_view pgn) {
+  unsigned variation_depth = 0;
+  TokenStream stream {pgn};
+  Token token = stream.next_token();
+
+  for (; token; ) {
+    // move number/result
+    // if result: break
+    // if move number: eat period & whitespace, parse SAN, parse NAGs, parse comment
+    // if open bracket: start new variation, continue
+    // if close bracket: exit previous variation, continue
+
+    // eat any whitespace before move number
+    for (; token.is(WHITESPACE, NEWLINE); token = stream.next_token()) {}
+
+    if (token.is(INTEGER, ASTERISK)) {
+      if (token.is(ASTERISK)) {
+        break;
+      } else if (stream.accept('/')) {
+        auto ss = stream.peek(-2, 7);
+        if (ss == "1/2-1/2") {
+          stream.pos += 6;
+        } else {
+          return {stream.pos - 1, PGNParseError::MalformedResultToken, stream.context()};
+        }
+
+        break;
+      } else if (stream.accept('-')) {
+        auto ss = stream.peek(-2, 3);
+        if (ss == "1-0" || ss == "0-1") {
+          stream.pos += 2;
+        } else {
+          return {stream.pos - 1, PGNParseError::MalformedResultToken, stream.context()};
+        }
+        break;
+      } else if (stream.accept('.')) {
+        stream.accept('.');
+        stream.accept('.');
+      } else {
+        return {stream.pos, PGNParseError::InvalidMoveNumber, stream.context()};
+      }
+
+      token = stream.next_token();
+    } else {
+    }
+
+    // eat any whitespace between move number and SAN
+    for (; token.is(WHITESPACE, NEWLINE); token = stream.next_token()) {}
+
+    if (token.is(SYMBOL)) {
+      token = stream.next_token();
+    }
+
+    // eat any NAGs and whitespace
+    for (; token.is(WHITESPACE, NEWLINE, NAG); token = stream.next_token()) {
+      if (token.is(NAG)) {
+        // add NAG
+      }
+    }
+
+    // consume comment
+    if (token.is(COMMENT)) {
+      token = stream.next_token();
+    } else {
+    }
+
+    for (; token.is(WHITESPACE, NEWLINE); token = stream.next_token()) {}
+
+    if (token.is(BRACKET)) {
+      if (token.contents == "(") {
+        ++variation_depth;
+
+        for (++stream.pos; variation_depth && !stream.eof(); ++stream.pos) {
+          char c = stream.pgn[stream.pos];
+          if (c == ')') --variation_depth;
+          if (c == '(') ++variation_depth;
+        }
+      } else if (token.contents == ")") {
+        return {stream.pos, PGNParseError::NotInVariation, stream.context()};
+      } else {
+        return {stream.pos, PGNParseError::ReservedToken, stream.context()};
+      }
+
+      token = stream.next_token();
+    }
   }
 
   return {stream.pos};
@@ -368,7 +422,7 @@ ParseResult parse_tags(std::string_view pgn, TagVisitor auto visitor) {
   for (; stream.accept('['); stream.eat("\r\n \t")) {
     token = stream.next_token();
     if (token.type != SYMBOL)
-      return {stream.pos, ParseError::Invalid, "missing tag name"};
+      return {stream.pos, PGNParseError::MalformedTag, stream.context()};
     
     std::string_view name = token.contents;
 
@@ -384,13 +438,75 @@ ParseResult parse_tags(std::string_view pgn, TagVisitor auto visitor) {
     }
 
     if (!closing_bracket)
-      return {stream.pos, ParseError::Invalid, "missing closing bracket"};
+      return {pos, PGNParseError::UnterminatedTag, stream.pgn.substr(pos)};
 
     std::string_view value = pgn.substr(pos, stream.pos - pos - 1);
     visitor(name, value);
   }
   
-  return {token ? stream.pos : 0};
+  return {stream.pos};
+}
+
+ParseResult parse_game(std::string_view pgn, TagVisitor auto tag_visitor,
+                       MoveVisitor auto move_visitor, ResultVisitor auto result_visitor,
+                       ErrorVisitor auto on_error = [] (auto) {}, bool skip_on_error = false) {
+  std::string_view fen;
+  auto r = parse_tags(pgn, [&] (auto name, auto value) {
+    if (name == "FEN") [[unlikely]]
+      fen = value;
+
+    return tag_visitor(name, value);
+  });
+
+  if (!r)
+    return r;
+
+  if (!fen.empty()) { // todo: unsupported
+    ParseResult s {r.pos, PGNParseError::CustomFENNotImplemented, fen};
+    on_error(s);
+
+    if (skip_on_error) {
+      s = skip_movetext(pgn.substr(r.pos));
+      return {r.pos + s.pos, s.ec, s.context};
+    } else
+      return s;
+  }
+
+  auto startpos = fen.empty() ? Startpos : Position::from_fen(fen);
+  if (!startpos) {
+    ParseResult s {r.pos, startpos.error(), fen};
+    on_error(s);
+
+    if (skip_on_error) {
+      s = skip_movetext(pgn.substr(r.pos));
+      return {r.pos + s.pos, s.ec, s.context};
+    } else
+      return s;
+  }
+
+  auto s = parse_movetext(pgn.substr(r.pos), move_visitor, result_visitor, *startpos);
+  if (!s)
+    on_error(s);
+
+  return {r.pos + s.pos, s.ec, s.context};
+}
+
+ParseResult parse_games(std::string_view pgn, TagVisitor auto tag_visitor,
+                        MoveVisitor auto move_visitor, ResultVisitor auto result_visitor,
+                        ErrorVisitor auto on_error, bool skip_on_error = false) {
+  std::size_t pos = 0;
+  for (; pos < pgn.size(); ) {
+    auto r = parse_game(pgn.substr(pos), tag_visitor, move_visitor, result_visitor, on_error, skip_on_error);
+    if (!r)
+      return {pos + r.pos, r.ec, r.context};
+
+    if (r.pos == 0)
+      break;
+
+    pos += r.pos;
+  }
+
+  return {pos};
 }
 
 } // cdb::chess
