@@ -68,10 +68,10 @@ PerftResult count_games(std::string_view data) {
 
   const auto t0 = clock::now();
   auto r = parse_games(data, [] (auto name, auto value) {
-    auto [it, inserted] = tag_name_map.try_emplace(name, TagValueMap());
+    /*auto [it, inserted] = tag_name_map.try_emplace(name, TagValueMap());
     auto [it2, inserted2] = it->second.try_emplace(value, 1ul);
     if (!inserted2)
-      it2->second += 1;
+      it2->second += 1;*/
   },
                        [&] (const auto &step) { ++result.nodes; },
                        [&] (auto) { ++result.games; },
@@ -154,6 +154,7 @@ int main(int argc, char *argv[]) {
 
   fmt::print("{} kgames/sec\n", tr.games / (tr.dt / (1'000'000)));
   fmt::print("{} knodes/sec\n", tr.nodes / (tr.dt / (1'000'000)));
+  fmt::print("{} MB/sec\n", (tr.size / 1024 / 1024) / (tr.dt / (1'000'000)));
 
   for (const auto &[name, value] : tag_name_map) {
     fmt::print("{:<16} {}\n", name, value.size());
