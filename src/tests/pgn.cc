@@ -2,6 +2,7 @@
 #include "chess/movegen.hh"
 #include "chess/pgn.hh"
 #include "core/error.hh"
+#include "core/io.hh"
 #include "util/bytesize.hh"
 
 #include <fmt/format.h>
@@ -94,13 +95,19 @@ PerftResult count_games(std::string_view data) {
 }
 
 PerftResult pgn_perft(const std::string &path) {
+#if 1
   std::string s;
   {
     std::ifstream ifs {path};
     std::stringstream ss;
     ss << ifs.rdbuf();
     s = ss.str();
+    
   }
+#else
+  auto mm = io::mm_open(path);
+  auto s = mm->str_view();
+#endif
 
   auto r = count_games(s);
   r.actual_games = count_occurence(s, "[Event ");

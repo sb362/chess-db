@@ -30,6 +30,29 @@ struct Move {
   constexpr bool operator==(const Move &b) const noexcept {
     return src == b.src && dst == b.dst && piece == b.piece && castling == b.castling;
   }
+
+  constexpr bool operator!=(const Move &b) const noexcept {
+    return !(*this == b);
+  }
+
+  constexpr Move(std::uint16_t u16)
+    : Move(static_cast<Square   >((u16 >> 0)  & 0x3f),
+           static_cast<Square   >((u16 >> 6)  & 0x3f),
+           static_cast<PieceType>((u16 >> 12) & 0x3),
+           static_cast<bool     >((u16 >> 15)))
+  {
+  }
+
+  constexpr std::uint16_t to_u16() const noexcept {
+    std::uint16_t x = 0;
+
+    x |= static_cast<std::uint16_t>(src)      << 0;
+    x |= static_cast<std::uint16_t>(dst)      << 6;
+    x |= static_cast<std::uint16_t>(piece)    << 12;
+    x |= static_cast<std::uint16_t>(castling) << 15;
+
+    return x;
+  }
 };
 
 using MoveList = static_vector<Move, 160>;

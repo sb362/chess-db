@@ -158,8 +158,8 @@ TEST_SUITE("bench-perft") {
 #undef BENCHMARK
 
 #define BENCHMARK(name, fen)                                          \
-  TEST_CASE(name) {                                                          \
-    const auto pos = *Position::from_fen(fen);                               \
+  TEST_CASE(name) {                                                   \
+    const auto pos = *Position::from_fen(fen);                        \
     b.run(name, [&] { nanobench::doNotOptimizeAway(movegen(pos)); }); \
   }
 

@@ -461,18 +461,10 @@ ParseResult parse_game(std::string_view pgn, TagVisitor auto tag_visitor,
   if (!r)
     return r;
 
-  if (!fen.empty()) { // todo: unsupported
-    ParseResult s {r.pos, PGNParseError::CustomFENNotImplemented, fen};
-    on_error(s);
+  Result<Position> startpos = Startpos;
+  if (!fen.empty()) // todo
+    startpos = std::unexpected(PGNParseError::CustomFENNotImplemented);
 
-    if (skip_on_error) {
-      s = skip_movetext(pgn.substr(r.pos));
-      return {r.pos + s.pos, s.ec, s.context};
-    } else
-      return s;
-  }
-
-  auto startpos = fen.empty() ? Startpos : Position::from_fen(fen);
   if (!startpos) {
     ParseResult s {r.pos, startpos.error(), fen};
     on_error(s);

@@ -3,6 +3,7 @@ src_inc = include_directories('.')
 
 cpp = meson.get_compiler('cpp')
 
+
 if cpp.get_id() == 'clang' or cpp.get_id() == 'gcc'
   add_project_arguments('-march=znver3', language : 'cpp')
   add_project_arguments('-D_HAS_CXX23',  language : 'cpp') # hack to get C++23 working
@@ -13,6 +14,7 @@ if cpp.get_id() == 'clang' or cpp.get_id() == 'gcc'
   if cpp.get_id() == 'clang'
     add_project_arguments('-fconstexpr-steps=11180420', language : 'cpp')
 
+	  #add_project_arguments('-stdlib=libc++', language : 'cpp')
     #if cpp.find_library('libc++', required : false).found()
     #  add_project_arguments('-stdlib=libc++', language : 'cpp')
     #endif

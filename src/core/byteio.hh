@@ -1,8 +1,9 @@
 #pragma once
 
 #include "util/bits.hh"
-#include "util/komihash.hh"
+#include "util/wyhash.hh"
 
+#include <cassert>
 #include <cstdint>
 #include <memory>
 #include <string_view>
@@ -80,20 +81,31 @@ public:
   constexpr bool empty() const noexcept { return size() == 0; }
 
   constexpr This subbuf(size_type offset, size_type sub_size) const noexcept {
+    assert((offset + sub_size) < size());
     return {data() + offset, sub_size};
   }
 
   constexpr size_type pos() const noexcept { return _pos; }
+  constexpr size_type remaining() const noexcept { return size() - pos(); }
 
-  constexpr void seek(size_type n) noexcept { _pos += n; }
-  constexpr void seek_abs(size_type n) noexcept { _pos = n; }
+  constexpr void seek(size_type n) noexcept {
+    assert(n < remaining());
+    _pos += n;
+  }
 
-  std::uint64_t hash(std::uint64_t seed = 0) const noexcept { return komihash(data(), size(), seed); }
+  constexpr void seek_abs(size_type n) noexcept {
+    assert(n < size());
+    _pos = n;
+  }
+
+  std::uint64_t hash(std::uint64_t seed = 0) const noexcept { return wyh::wyhash(data(), size(), seed); }
 
   constexpr std::byte peek() const noexcept { return static_cast<std::byte>(at(pos())); }
 
   template <std::unsigned_integral Ret>
   constexpr Ret read_le(size_type n = sizeof(Ret)) noexcept {
+    assert(n <= remaining());
+
     Ret x = 0;
 
     for (size_t i = 0; i < n; ++i)
@@ -133,7 +145,8 @@ public:
   }
 
   constexpr std::string_view read_string() noexcept {
-    return read_bytes(read_uleb128());
+    auto s = read_bytes(read_uleb128());
+    return {reinterpret_cast<const char *>(s.data()), s.size()};
   }
 
   constexpr std::span<const std::byte> span_upto() const noexcept {

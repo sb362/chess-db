@@ -56,6 +56,7 @@ std::error_code mm_file::open(const fs::path &path, size_t size, bool temp)
   auto fh = (HANDLE)_get_osfhandle(file);
   auto mh = CreateFileMapping(fh, nullptr, PAGE_READWRITE,
                               mem_size >> 32, mem_size & 0xffffffff, nullptr);
+
   if (mh == nullptr) // CreateFileMapping failed
     return {static_cast<int>(GetLastError()), std::system_category()};
 
