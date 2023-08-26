@@ -8,8 +8,7 @@
 #include <string>
 #include <string_view>
 
-namespace cdb::log
-{
+namespace cdb {
 
 enum class log_level {
   trace, debug, info, warn, error, fatal
@@ -32,17 +31,16 @@ struct log_context {
   }
 };
 
-class logger {
-  std::string _name;
-  log_level _level;
+class Logger {
+private:
+  log_level _level = log_level::info;
 
   void vlog(log_level level, std::string_view format, fmt::format_args args,
             const source_location sloc = source_location::current()) const;
 
 public:
-  constexpr logger(std::string name, log_level level = log_level::trace) : _name(std::move(name)), _level(level) {}
-
-  constexpr bool enabled(log_level level) const { return level >= _level; }
+  bool enabled(log_level level) const noexcept { return level >= _level; }
+  void set_level(log_level level) noexcept { _level = level; }
 
   template <typename ...Args>
   void log(log_level level, log_context ctx, Args &&...args) const {
@@ -66,15 +64,17 @@ public:
   void error(log_context ctx, Args &&...args) const { log(log_level::error, ctx, std::forward<Args>(args)...); }
 };
 
-} // cdb::log
+Logger &log();
+
+} // cdb
 
 template <>
-struct fmt::formatter<cdb::log::log_level> {
+struct fmt::formatter<cdb::log_level> {
   template <class ParseContext>
   constexpr auto parse(ParseContext &pc) { return pc.begin(); }
 
   template <class FormatContext>
-  auto format(cdb::log::log_level level, FormatContext &fc) const {
+  auto format(cdb::log_level level, FormatContext &fc) const {
     static constexpr std::array level_strs {"TRACE", "DEBUG", "INFO ", "WARN ", "ERROR"};
     return fmt::format_to(fc.out(), "{}", level_strs[static_cast<int>(level)]);
   }

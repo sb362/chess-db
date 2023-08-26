@@ -3,8 +3,6 @@
 #include "core/io.hh"
 #include "core/logger.hh"
 
-const cdb::log::logger logger {"io"};
-
 using namespace cdb::io;
 
 #if defined(_WIN32)
@@ -151,13 +149,13 @@ void mm_file::close() {
     return;
 
   if (munmap(mem, mem_size) < 0)
-    logger.error("munmap({}, {}) failed\n", static_cast<const void *>(mem), mem_size);
+    log().error("io: munmap({}, {}) failed\n", static_cast<const void *>(mem), mem_size);
 
   if (ftruncate(file, file_size) < 0)
-    logger.error("ftruncate({}, {}) failed\n", file, file_size);
+    log().error("io: ftruncate({}, {}) failed\n", file, file_size);
 
   if (::close(file) < 0)
-    logger.error("close({}, {}) failed\n", file);
+    log().error("io: close({}, {}) failed\n", file);
 
   file = -1;
   mem = nullptr;

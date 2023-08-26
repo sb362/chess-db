@@ -32,4 +32,26 @@ struct iterator_facade {
   bool operator!=(This const &other) const { return !(*this == other); }
 };
 
+template <typename It>
+class iterator_range {
+private:
+  It _begin, _end;
+
+public:
+
+  template <typename Container>
+  iterator_range(Container &&container)
+    : _begin(container.begin()), _end(container.end())
+  {
+  }
+
+  iterator_range(It begin, It end)
+    : _begin(std::move(begin)), _end(std::move(end))
+  {
+  }
+
+  It begin() const { return _begin; }
+  It end() const { return _end; }
+};
+
 } // cdb
