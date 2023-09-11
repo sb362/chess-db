@@ -109,9 +109,6 @@ TEST_SUITE("byteio") {
     out_buf.write_le(u4, 5);
     out_buf.write_le(u5, 3);
 
-    std::ofstream dump {"dump.bin", std::ios::binary};
-    dump.write(reinterpret_cast<const char *>(out_buf.data()), out_buf.size());
-
     io::const_buffer in_buf(out_buf.view());
 
     CHECK(in_buf.read_le<1>() == u0);
