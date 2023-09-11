@@ -5,7 +5,6 @@
 
 #include <cassert>
 #include <chrono>
-#include <iostream>
 
 using namespace cdb;
 

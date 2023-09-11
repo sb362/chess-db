@@ -79,6 +79,14 @@ enum class PGNParseError {
 template <> struct std::is_error_code_enum<PGNParseError> : std::true_type {};
 std::error_code make_error_code(PGNParseError e);
 
+enum class DbError {
+  Success = 0,
+  BadMagic,
+  BadChecksum
+};
+template <> struct std::is_error_code_enum<DbError> : std::true_type {};
+std::error_code make_error_code(DbError e);
+
 
 namespace cdb {
   struct ParseResult {

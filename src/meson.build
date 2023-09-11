@@ -45,15 +45,18 @@ util_dep = declare_dependency(include_directories : src_inc)
 
 
 # core
-core_srcs = ['core/io.cc', 'core/logger.cc', 'core/error.cc']
+core_srcs = ['core/io.cc', 'core/logger.cc', 'core/error.cc', 'core/byteio.cc']
 core_hdrs = ['core/io.hh', 'core/logger.hh', 'core/error.hh', 'core/byteio.hh']
 
 install_headers(core_hdrs, preserve_path : true)
 
 core_lib = library('core', sources : core_srcs, include_directories : src_inc,
-                   dependencies : [util_dep, fmt_dep], install : true)
+                   dependencies : [util_dep, fmt_dep, doctest_dep], install : true)
 core_dep = declare_dependency(include_directories : src_inc, link_with : [core_lib])
 
+core_test = executable('core-tests', sources : ['core/main.cc'] + core_srcs,
+                                     dependencies : [util_dep, core_dep, fmt_dep, doctest_dep],
+                                     install : true, cpp_args : ['-DENABLE_TESTS'])
 
 # chess
 chess_srcs = ['chess/bitboard.cc', 'chess/position.cc', 'chess/movegen.cc', 'chess/notation.cc', 'chess/pgn.cc']
@@ -65,15 +68,22 @@ chess_lib = library('chess', sources : chess_srcs, include_directories : src_inc
                     dependencies : [util_dep, core_dep, fmt_dep, doctest_dep], install : true)
 chess_dep = declare_dependency(include_directories : src_inc, link_with : [chess_lib])
 
-chess_test  = executable('chess-tests', sources : ['chess/main.cc'] + chess_srcs,
-                                        dependencies : [util_dep, core_dep, fmt_dep, doctest_dep],
-                                        install : true, cpp_args : ['-DENABLE_TESTS'])
+chess_test = executable('chess-tests', sources : ['chess/main.cc'] + chess_srcs,
+                                       dependencies : [util_dep, core_dep, fmt_dep, doctest_dep],
+                                       install : true, cpp_args : ['-DENABLE_TESTS'])
 
 
+# db
+db_srcs = ['db/database.cc']
+db_hdrs = ['db/database.hh']
+
+install_headers(db_hdrs, preserve_path : true)
+
+db_lib = library('db', sources : db_srcs, include_directories : src_inc,
+                 dependencies : [util_dep, core_dep, fmt_dep, doctest_dep], install : true)
+db_dep = declare_dependency(include_directories : src_inc, link_with : [db_lib])
 
 
-main_exe = executable('cdb', 'main.cc', install : true, dependencies : [util_dep, core_dep, chess_dep, fmt_dep, doctest_dep],
+main_exe = executable('cdb', 'main.cc', install : true,
+                      dependencies : [util_dep, core_dep, chess_dep, db_dep, fmt_dep, doctest_dep],
                       cpp_args : ['-DDOCTEST_CONFIG_DISABLE'])
-main_exe = executable('pgn', 'tests/pgn.cc', install : true, dependencies : [util_dep, core_dep, chess_dep, fmt_dep, doctest_dep],
-                      cpp_args : ['-DDOCTEST_CONFIG_DISABLE'])
-

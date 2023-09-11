@@ -32,7 +32,7 @@ struct iterator_facade {
   bool operator!=(This const &other) const { return !(*this == other); }
 };
 
-template <typename It>
+template <class It>
 class iterator_range {
 private:
   It _begin, _end;

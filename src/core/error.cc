@@ -117,6 +117,25 @@ std::error_code make_error_code(PGNParseError e) {
 }
 
 
+struct DbCategory : std::error_category {
+  [[nodiscard]] const char *name() const noexcept override { return "db"; }
+  [[nodiscard]] std::string message(int ev) const override {
+    using enum DbError;
+    switch (static_cast<DbError>(ev)) {
+    case Success:        return "success";
+    case BadMagic:       return "bad magic";
+    case BadChecksum:    return "bad checksum";
+    default:                    return "(unknown error)";
+    }
+  }
+};
+
+std::error_code make_error_code(DbError e) {
+  static DbCategory category;
+  return {static_cast<int>(e), category};
+}
+
+
 std::string_view cdb::get_context(std::string_view s, std::size_t pos, std::size_t max_size) {
   auto l = std::clamp(std::size_t(pos - max_size / 2), std::size_t(0), s.size());
   auto r = std::clamp(            pos + max_size / 2,  pos,  s.size());

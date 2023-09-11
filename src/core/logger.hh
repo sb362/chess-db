@@ -3,6 +3,7 @@
 #include "util/source_location.hh"
 
 #include <fmt/format.h>
+#include <fmt/std.h>
 
 #include <array>
 #include <string>

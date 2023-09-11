@@ -26,6 +26,7 @@ private:
 
 public:
   constexpr basic_buffer() = default;
+  constexpr ~basic_buffer() = default;
 
   constexpr basic_buffer(pointer_type data, size_type size) noexcept
     : _data(data), _size(size)
@@ -54,7 +55,11 @@ public:
     _data = b._data;
     _size = b._size;
     _pos = b._pos;
+    return *this;
   }
+
+  constexpr basic_buffer(const basic_buffer &) = delete;
+  constexpr basic_buffer &operator=(const basic_buffer &) = delete;
 
   constexpr bool is_view() const noexcept {
     return _ptr == nullptr;
@@ -81,15 +86,28 @@ public:
   constexpr bool empty() const noexcept { return size() == 0; }
 
   constexpr This subbuf(size_type offset, size_type sub_size) const noexcept {
-    assert((offset + sub_size) < size());
+    assert((offset + sub_size) <= size());
     return {data() + offset, sub_size};
+  }
+
+  constexpr This subbuf_from(size_type offset) const noexcept {
+    return subbuf(offset, size() - offset);
+  }
+
+  constexpr This subbuf_to(size_type offset) const noexcept {
+    return subbuf(0, offset);
+  }
+
+  constexpr This subbuf_between(size_type begin, size_type end) const noexcept {
+    assert(begin < end);
+    return subbuf(begin, end - begin);
   }
 
   constexpr size_type pos() const noexcept { return _pos; }
   constexpr size_type remaining() const noexcept { return size() - pos(); }
 
   constexpr void seek(size_type n) noexcept {
-    assert(n < remaining());
+    assert(n <= remaining());
     _pos += n;
   }
 
@@ -109,7 +127,7 @@ public:
     Ret x = 0;
 
     for (size_t i = 0; i < n; ++i)
-      x |= static_cast<Ret>(at(pos() + i)) << (8 * (n - i - 1));
+      x |= static_cast<Ret>(at(pos() + i)) << (8 * i);
 
     seek(n);
     return x;
@@ -149,9 +167,22 @@ public:
     return {reinterpret_cast<const char *>(s.data()), s.size()};
   }
 
-  constexpr std::span<const std::byte> span_upto() const noexcept {
-    return {data(), pos()};
+  constexpr std::span<const std::byte> span() const noexcept {
+    return {data(), size()};
   }
+
+  constexpr std::span<const std::byte> subspan(std::size_t offset,
+                                               std::size_t n) const noexcept {
+    return subbuf(offset, n).span();
+  }
+
+  constexpr std::span<const std::byte> subspan_from(std::size_t offset) const noexcept {
+    return subspan(offset, size() - offset);
+  }
+
+  std::string_view str_view() const {
+		return {reinterpret_cast<const char *>(data()), size()};
+	}
 };
 
 struct const_buffer : public basic_buffer<const std::byte, const_buffer>
